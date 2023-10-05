@@ -1,0 +1,12 @@
+[package]
+name = "acctblty"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sha2 = { version = "0.10" }
+serde = { version = "1" }
+rand = { version = "0.8" }
+hmac = "0.12"
+curve25519-dalek = { version = "4", features = [ "serde", "digest" ]}
+lazy_static = "1.4.0"
