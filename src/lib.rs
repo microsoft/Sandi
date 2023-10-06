@@ -1,6 +1,9 @@
 pub mod nizqdleq;
 pub mod blind_token;
+pub mod accountability_server;
+pub mod sender_ids;
 mod utils;
+pub mod tag;
 
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use sha2::Sha512;
