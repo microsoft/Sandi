@@ -1,6 +1,15 @@
-use aes::{Aes256, cipher::{KeyInit, BlockEncrypt, KeySizeUser, BlockDecrypt, BlockSizeUser, generic_array::GenericArray}};
-use curve25519_dalek::{Scalar, RistrettoPoint, constants::RISTRETTO_BASEPOINT_POINT };
-use rand::{RngCore, CryptoRng};
+use aes::{
+    cipher::{
+        generic_array::GenericArray, BlockDecrypt, BlockEncrypt, BlockSizeUser, KeyInit,
+        KeySizeUser,
+    },
+    Aes256,
+};
+use curve25519_dalek::{constants::RISTRETTO_BASEPOINT_POINT, RistrettoPoint, Scalar};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use rand::{CryptoRng, RngCore};
+
+use crate::tag::Tag;
 
 pub fn random_scalar<R>(rng: &mut R) -> Scalar
 where
@@ -21,7 +30,10 @@ pub fn encrypt(key: &[u8], message: &mut [u8]) {
         panic!("Key size is not {} bytes", Aes256::key_size());
     }
     if (message.len() % Aes256::block_size()) != 0 {
-        panic!("Message size is not a multiple of {} bytes", Aes256::block_size());
+        panic!(
+            "Message size is not a multiple of {} bytes",
+            Aes256::block_size()
+        );
     }
 
     let cipher = Aes256::new_from_slice(key).unwrap();
@@ -35,7 +47,10 @@ pub fn decrypt(key: &[u8], ciphertext: &mut [u8]) {
         panic!("Key size is not {} bytes", Aes256::key_size());
     }
     if (ciphertext.len() % Aes256::block_size()) != 0 {
-        panic!("Ciphertext size is not a multiple of {} bytes", Aes256::block_size());
+        panic!(
+            "Ciphertext size is not a multiple of {} bytes",
+            Aes256::block_size()
+        );
     }
 
     let cipher = Aes256::new_from_slice(key).unwrap();
@@ -46,6 +61,33 @@ pub fn decrypt(key: &[u8], ciphertext: &mut [u8]) {
 
 pub fn cipher_block_size() -> usize {
     Aes256::block_size()
+}
+
+pub struct SignatureVerificationError(pub String);
+
+pub fn verify_signature(
+    tag: &Tag,
+    verifying_key: &VerifyingKey,
+) -> Result<(), SignatureVerificationError> {
+    // Verify if signature is valid
+    let mut data_to_sign = Vec::new();
+    data_to_sign.extend_from_slice(&tag.commitment);
+    data_to_sign.extend_from_slice(tag.exp_timestamp.to_be_bytes().as_slice());
+    data_to_sign.extend_from_slice(tag.score.to_be_bytes().as_slice());
+    data_to_sign.extend_from_slice(&tag.enc_sender_id);
+    data_to_sign.extend_from_slice(tag.sender_handle.as_bytes());
+
+    let sigbytes: [u8; 64] = tag.signature[..64]
+        .try_into()
+        .map_err(|_| SignatureVerificationError("Invalid signature".to_string()))?;
+
+    let signature = Signature::from_bytes(&sigbytes);
+
+    verifying_key
+        .verify(&data_to_sign, &signature)
+        .map_err(|_| SignatureVerificationError("Invalid signature".to_string()))?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -63,7 +105,10 @@ mod tests {
     #[test]
     fn test_encrypt() {
         let key = [0u8; 32];
-        let mut message = [0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x01];
+        let mut message = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x01,
+        ];
         let mut message2 = [0x0u8; 16];
         // Copy the clear text message into message2
         message2.copy_from_slice(&message);
@@ -80,7 +125,11 @@ mod tests {
     #[test]
     fn test_encrypt_multiblock() {
         let key = [0u8; 32];
-        let mut message = [0x01u8,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x00,0x01u8,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x00];
+        let mut message = [
+            0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x00, 0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
+            0x0d, 0x0e, 0x0f, 0x00,
+        ];
         let mut message2 = [0x0u8; 32];
         // Copy the clear text message into message2
         message2.copy_from_slice(&message);

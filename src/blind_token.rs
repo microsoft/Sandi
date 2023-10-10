@@ -1,9 +1,11 @@
-use curve25519_dalek::{Scalar, RistrettoPoint};
-use rand::{RngCore, CryptoRng};
+use curve25519_dalek::{RistrettoPoint, Scalar};
+use rand::{CryptoRng, RngCore};
 use sha2::Sha512;
 
-use crate::{utils::{ random_scalar, G }, nizqdleq::prove};
-
+use crate::{
+    nizqdleq::prove,
+    utils::{random_scalar, G},
+};
 
 pub fn generate_key_pair<R>(rng: &mut R) -> (Scalar, RistrettoPoint)
 where
@@ -29,7 +31,12 @@ where
     return (nonce, r, blinded_message);
 }
 
-pub fn sign<R>(blinded_message: RistrettoPoint, secret_key: Scalar, public_key: RistrettoPoint, rng: &mut R) -> (RistrettoPoint, (Scalar, Scalar))
+pub fn sign<R>(
+    blinded_message: RistrettoPoint,
+    secret_key: Scalar,
+    public_key: RistrettoPoint,
+    rng: &mut R,
+) -> (RistrettoPoint, (Scalar, Scalar))
 where
     R: RngCore + CryptoRng,
 {

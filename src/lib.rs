@@ -1,13 +1,14 @@
-pub mod nizqdleq;
-pub mod blind_token;
 pub mod accountability_server;
+pub mod blind_token;
+pub mod nizqdleq;
+pub mod sender;
 pub mod sender_ids;
-mod utils;
 pub mod tag;
+pub mod tag_verifier;
+mod utils;
 
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use sha2::Sha512;
-
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

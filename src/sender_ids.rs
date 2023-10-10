@@ -1,16 +1,17 @@
-use std::{sync::Mutex, collections::HashMap};
+use std::{collections::HashMap, sync::Mutex};
 
 use crate::tag::Tag;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref SENDER_ID_RECORDS: Mutex<HashMap<[u8; 16], SenderRecord>> = Mutex::new(HashMap::new());
+    static ref SENDER_ID_RECORDS: Mutex<HashMap<[u8; 16], SenderRecord>> =
+        Mutex::new(HashMap::new());
 }
 
 pub type SenderId = [u8; 16];
 
 #[derive(Clone)]
-pub (crate) struct SenderRecord {
+pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
     pub score: i32,
@@ -27,4 +28,16 @@ pub(crate) fn get_sender(handle: &str) -> Option<SenderRecord> {
     }
 
     None
+}
+
+pub(crate) fn set_sender(sender_record: SenderRecord) {
+    let mut records = SENDER_ID_RECORDS.lock().unwrap();
+    records
+        .entry(sender_record.id)
+        .and_modify(|e| {
+            e.handles = sender_record.handles.clone();
+            e.score = sender_record.score;
+            e.reported_tags = sender_record.reported_tags.clone();
+        })
+        .or_insert(sender_record);
 }

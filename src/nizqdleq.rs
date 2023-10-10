@@ -1,11 +1,17 @@
 use curve25519_dalek::{RistrettoPoint, Scalar};
-use rand::{RngCore, CryptoRng};
+use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 
 use crate::utils::G;
 
 #[allow(non_snake_case)]
-pub fn prove<R>(message: RistrettoPoint, signature: RistrettoPoint, secret_key: Scalar, public_key: RistrettoPoint, rng: &mut R) -> (Scalar, Scalar)
+pub fn prove<R>(
+    message: RistrettoPoint,
+    signature: RistrettoPoint,
+    secret_key: Scalar,
+    public_key: RistrettoPoint,
+    rng: &mut R,
+) -> (Scalar, Scalar)
 where
     R: RngCore + CryptoRng,
 {
@@ -31,7 +37,12 @@ where
 }
 
 #[allow(non_snake_case)]
-pub fn verify(proof: (Scalar, Scalar), message: RistrettoPoint, signature: RistrettoPoint, public_key: RistrettoPoint) -> bool {
+pub fn verify(
+    proof: (Scalar, Scalar),
+    message: RistrettoPoint,
+    signature: RistrettoPoint,
+    public_key: RistrettoPoint,
+) -> bool {
     let (challenge, response) = proof;
     let A = G() * response + public_key * challenge;
     let B = message * response + signature * challenge;
