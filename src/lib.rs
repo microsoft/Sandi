@@ -7,44 +7,52 @@ pub mod tag;
 pub mod tag_verifier;
 mod utils;
 
-use curve25519_dalek::{RistrettoPoint, Scalar};
-use sha2::Sha512;
-
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
 
 pub fn test() {
-    //let scalar = curve25519_dalek::scalar::Scalar::
-    let point = RistrettoPoint::hash_from_bytes::<Sha512>(b"hello world");
-    println!("Hello, world! {:?}", point);
-
-    let scalar = Scalar::from(1u8);
-    let point2 = point * scalar;
-    println!("Hello, world! {:?}", point2);
 }
 
 pub fn prove() {
-    let message = RistrettoPoint::hash_from_bytes::<Sha512>(b"hello world");
-    let signature = RistrettoPoint::hash_from_bytes::<Sha512>(b"hello world 2");
-    let secret_key = Scalar::from(2u8);
-    let public_key = RistrettoPoint::hash_from_bytes::<Sha512>(b"hello world 3");
-    let mut rng = rand::thread_rng();
-    nizqdleq::prove(message, signature, secret_key, public_key, &mut rng);
 }
 
 #[cfg(test)]
 mod tests {
+    use rand::rngs::OsRng;
+    use serial_test::serial;
+    use crate::{accountability_server::AccountabilityServer, sender::Sender, sender_ids::clear_sender_records};
+
     use super::*;
 
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+    #[serial]
+    fn issue_tag_test() {
+        let mut rng = OsRng;
+        let accsvr = AccountabilityServer::new(&mut rng);
+        let sender = Sender::new("sender1");
 
-    #[test]
-    fn test_test() {
-        test();
+        // Ask for a tag
+        let msg = "This is a test message";
+        let receiver_handle = "receiver";
+        let tag = sender.get_tag(msg, receiver_handle, &accsvr, &mut rng);
+
+        // Verify tag
+        let vk = accsvr.get_verifying_key();
+        let verif_result = tag_verifier::verify(receiver_handle, msg, &tag.0, tag.1, &vk);
+        assert!(verif_result.is_ok());
+
+        // Sender should have no reports
+        let sender_opt = sender_ids::get_sender_by_handle("sender1");
+        assert!(sender_opt.is_some());
+        assert_eq!(sender_opt.unwrap().reported_tags.len(), 0);
+
+        // Report tag
+        let report_result = accsvr.report(&tag.0);
+        assert!(report_result.is_ok());
+
+        // Sender should have one report now
+        let sender_opt = sender_ids::get_sender_by_handle("sender1");
+        assert!(sender_opt.is_some());
+        assert_eq!(sender_opt.unwrap().reported_tags.len(), 1);
+
+        clear_sender_records();
     }
 }

@@ -1,11 +1,12 @@
 use std::cmp;
 
-use crate::sender_ids::set_sender;
+use crate::sender_ids::SenderRecord;
 use crate::tag::Tag;
-use crate::utils::{verify_signature, SignatureVerificationError};
-use crate::{sender_ids::get_sender, utils::encrypt};
+use crate::utils::{verify_signature, SignatureVerificationError, cipher_block_size, decrypt};
+use crate::{sender_ids::get_sender_by_handle, sender_ids::set_sender, utils::encrypt};
 use chrono::{Duration, Utc};
 use ed25519_dalek::{Signer, SigningKey};
+use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
 
 pub struct AccountabilityServer {
@@ -33,7 +34,20 @@ impl AccountabilityServer {
 
     pub fn issue_tag(&self, commitment: &Vec<u8>, sender_handle: &str, tag_duration: u32) -> Tag {
         // First, we need to check if the sender_handle is valid
-        let sender = get_sender(sender_handle).expect("Sender handle not found");
+        let mut sender_opt = get_sender_by_handle(sender_handle);
+        if sender_opt.is_none() {
+            let mut rng = OsRng;
+            let sender = SenderRecord::new(sender_handle, &mut rng);
+            set_sender(sender.clone());
+            sender_opt = Some(sender);
+        }
+
+        let sender = sender_opt.expect("Sender should exist");
+
+        // Check sender id size
+        if sender.id.len() % cipher_block_size() != 0 {
+            panic!("Sender id size is not a multiple of {} bytes", cipher_block_size());
+        }
 
         // Then, we encrypt the sender ID
         let mut encrypted_sender_id = sender.id.clone();
@@ -79,7 +93,7 @@ impl AccountabilityServer {
         }
 
         // Verify if tag is included
-        let sender_opt = get_sender(&tag.sender_handle);
+        let sender_opt = get_sender_by_handle(&tag.sender_handle);
         match sender_opt {
             Some(sender) => {
                 if sender.reported_tags.contains(tag) {
@@ -87,9 +101,19 @@ impl AccountabilityServer {
                 }
 
                 let verifying_key = self.signing_key.verifying_key();
-                let verif_result = verify_signature(tag, &verifying_key);
-                match verif_result {
+                let signature_result = verify_signature(tag, &verifying_key);
+                match signature_result {
                     Ok(_) => {
+                        // Verify the encrypted sender ID
+                        let mut decrypted_sender_id = tag.enc_sender_id.clone();
+                        decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
+
+                        if decrypted_sender_id != sender.id {
+                            return Err(ReportError(
+                                "Invalid encrypted sender ID".to_string(),
+                            ));
+                        }
+
                         // Tag is valid, so we add it to the reported tags and reduce the score
                         let mut new_sender = sender.clone();
                         new_sender.reported_tags.push(tag.clone());

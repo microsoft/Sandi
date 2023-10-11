@@ -6,7 +6,7 @@ use aes::{
     Aes256,
 };
 use curve25519_dalek::{constants::RISTRETTO_BASEPOINT_POINT, RistrettoPoint, Scalar};
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use rand::{CryptoRng, RngCore};
 
 use crate::tag::Tag;
@@ -90,13 +90,33 @@ pub fn verify_signature(
     Ok(())
 }
 
+pub fn verifying_key_from_vec(vk: &Vec<u8>) -> Result<VerifyingKey, String> {
+    if vk.len() != PUBLIC_KEY_LENGTH {
+        return Err(format!(
+            "Verifying key size is not {} bytes",
+            PUBLIC_KEY_LENGTH
+        ));
+    }
+
+    let vkbytes: [u8; PUBLIC_KEY_LENGTH] = vk[..PUBLIC_KEY_LENGTH]
+    .try_into()
+    .map_err(|_| "Invalid verifying key".to_string())?;
+
+    let verifying_key = VerifyingKey::from_bytes(&vkbytes)
+    .map_err(|_| "Invalid verifying key".to_string())?;
+
+    Ok(verifying_key)
+}
+
 #[cfg(test)]
 mod tests {
+    use rand::rngs::OsRng;
+
     use super::*;
 
     #[test]
     fn test_random_scalar() {
-        let mut rng = rand::thread_rng();
+        let mut rng = OsRng;
         let scalar1 = random_scalar(&mut rng);
         let scalar2 = random_scalar(&mut rng);
         assert_ne!(scalar1, scalar2);

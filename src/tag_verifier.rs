@@ -1,6 +1,5 @@
-use crate::tag::Tag;
+use crate::{tag::Tag, utils::{verify_signature, SignatureVerificationError, verifying_key_from_vec}};
 use chrono::Utc;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
@@ -20,29 +19,21 @@ pub fn verify(
     }
 
     // Verify signature
-    let mut data_to_sign = Vec::new();
-    data_to_sign.extend_from_slice(&tag.commitment);
-    data_to_sign.extend_from_slice(tag.exp_timestamp.to_be_bytes().as_slice());
-    data_to_sign.extend_from_slice(tag.score.to_be_bytes().as_slice());
-    data_to_sign.extend_from_slice(&tag.enc_sender_id);
-    data_to_sign.extend_from_slice(tag.sender_handle.as_bytes());
+    let verif_key = verifying_key_from_vec(verifying_key)
+    .map_err(|err_msg| VerificationError(err_msg))?;
 
-    let vkbytes: [u8; PUBLIC_KEY_LENGTH] = verifying_key[..PUBLIC_KEY_LENGTH]
-        .try_into()
-        .map_err(|_| VerificationError("Invalid verifying key".to_string()))?;
+    let signature_result = verify_signature(tag, &verif_key);
+    match signature_result {
+        Ok(_) => {}
+        Err(SignatureVerificationError(err_msg)) => {
+            return Err(VerificationError(format!(
+                "Error verifying signature: {}",
+                err_msg
+            )));
+        }
+    }
 
-    let sigbytes: [u8; 64] = tag.signature[..64]
-        .try_into()
-        .map_err(|_| VerificationError("Invalid signature".to_string()))?;
-
-    let signature = Signature::from_bytes(&sigbytes);
-
-    VerifyingKey::from_bytes(&vkbytes)
-        .map_err(|_| VerificationError("Invalid verifying key".to_string()))?
-        .verify(&data_to_sign, &signature)
-        .map_err(|_| VerificationError("Invalid signature".to_string()))?;
-
-    // Verify message
+    // Verify message correctness
     let mut mac = Hmac::<Sha256>::new_from_slice(&randomness)
         .map_err(|_| VerificationError("Invalid randomness".to_string()))?;
 
