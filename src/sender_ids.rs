@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Mutex};
 
 use crate::tag::Tag;
 use lazy_static::lazy_static;
-use rand::{RngCore, CryptoRng};
+use rand::{CryptoRng, RngCore};
 
 lazy_static! {
     static ref SENDER_RECORDS: Mutex<HashMap<[u8; 16], SenderRecord>> = Mutex::new(HashMap::new());
@@ -22,11 +22,11 @@ pub(crate) struct SenderRecord {
 impl SenderRecord {
     pub fn new<R>(handle: &str, rng: &mut R) -> SenderRecord
     where
-        R: RngCore + CryptoRng, {
-
+        R: RngCore + CryptoRng,
+    {
         let mut sender_id = [0u8; 16];
         rng.fill_bytes(&mut sender_id);
-        
+
         SenderRecord {
             id: sender_id,
             handles: vec![handle.to_string()],

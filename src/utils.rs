@@ -99,11 +99,11 @@ pub fn verifying_key_from_vec(vk: &Vec<u8>) -> Result<VerifyingKey, String> {
     }
 
     let vkbytes: [u8; PUBLIC_KEY_LENGTH] = vk[..PUBLIC_KEY_LENGTH]
-    .try_into()
-    .map_err(|_| "Invalid verifying key".to_string())?;
+        .try_into()
+        .map_err(|_| "Invalid verifying key".to_string())?;
 
-    let verifying_key = VerifyingKey::from_bytes(&vkbytes)
-    .map_err(|_| "Invalid verifying key".to_string())?;
+    let verifying_key =
+        VerifyingKey::from_bytes(&vkbytes).map_err(|_| "Invalid verifying key".to_string())?;
 
     Ok(verifying_key)
 }

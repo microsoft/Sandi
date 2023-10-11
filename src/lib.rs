@@ -7,18 +7,18 @@ pub mod tag;
 pub mod tag_verifier;
 mod utils;
 
+pub fn test() {}
 
-pub fn test() {
-}
-
-pub fn prove() {
-}
+pub fn prove() {}
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        accountability_server::AccountabilityServer, sender::Sender,
+        sender_ids::clear_sender_records,
+    };
     use rand::rngs::OsRng;
     use serial_test::serial;
-    use crate::{accountability_server::AccountabilityServer, sender::Sender, sender_ids::clear_sender_records};
 
     use super::*;
 
@@ -36,7 +36,7 @@ mod tests {
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
-        let verif_result = tag_verifier::verify(receiver_handle, msg, &tag.0, tag.1, &vk);
+        let verif_result = tag_verifier::verify(receiver_handle, msg, &tag.0, &tag.1, &vk);
         assert!(verif_result.is_ok());
 
         // Sender should have no reports

@@ -2,7 +2,7 @@ use std::cmp;
 
 use crate::sender_ids::SenderRecord;
 use crate::tag::Tag;
-use crate::utils::{verify_signature, SignatureVerificationError, cipher_block_size, decrypt};
+use crate::utils::{cipher_block_size, decrypt, verify_signature, SignatureVerificationError};
 use crate::{sender_ids::get_sender_by_handle, sender_ids::set_sender, utils::encrypt};
 use chrono::{Duration, Utc};
 use ed25519_dalek::{Signer, SigningKey};
@@ -46,7 +46,10 @@ impl AccountabilityServer {
 
         // Check sender id size
         if sender.id.len() % cipher_block_size() != 0 {
-            panic!("Sender id size is not a multiple of {} bytes", cipher_block_size());
+            panic!(
+                "Sender id size is not a multiple of {} bytes",
+                cipher_block_size()
+            );
         }
 
         // Then, we encrypt the sender ID
@@ -109,9 +112,7 @@ impl AccountabilityServer {
                         decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
 
                         if decrypted_sender_id != sender.id {
-                            return Err(ReportError(
-                                "Invalid encrypted sender ID".to_string(),
-                            ));
+                            return Err(ReportError("Invalid encrypted sender ID".to_string()));
                         }
 
                         // Tag is valid, so we add it to the reported tags and reduce the score

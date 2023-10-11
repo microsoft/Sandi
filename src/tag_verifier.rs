@@ -1,4 +1,7 @@
-use crate::{tag::Tag, utils::{verify_signature, SignatureVerificationError, verifying_key_from_vec}};
+use crate::{
+    tag::Tag,
+    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError},
+};
 use chrono::Utc;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -10,7 +13,7 @@ pub fn verify(
     receiver_handle: &str,
     message: &str,
     tag: &Tag,
-    randomness: Vec<u8>,
+    randomness: &Vec<u8>,
     verifying_key: &Vec<u8>,
 ) -> Result<i32, VerificationError> {
     if tag.exp_timestamp < Utc::now().timestamp() {
@@ -19,8 +22,8 @@ pub fn verify(
     }
 
     // Verify signature
-    let verif_key = verifying_key_from_vec(verifying_key)
-    .map_err(|err_msg| VerificationError(err_msg))?;
+    let verif_key =
+        verifying_key_from_vec(verifying_key).map_err(|err_msg| VerificationError(err_msg))?;
 
     let signature_result = verify_signature(tag, &verif_key);
     match signature_result {
