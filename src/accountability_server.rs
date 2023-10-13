@@ -1,16 +1,16 @@
-use crate::sender_ids::{SenderRecord, get_sender_id, SenderId, get_sender_by_id};
+use crate::sender_ids::{get_sender_by_id, get_sender_id, SenderId, SenderRecord};
 use crate::tag::Tag;
 use crate::utils::{cipher_block_size, decrypt, verify_signature, SignatureVerificationError};
 use crate::{sender_ids::get_sender_by_handle, sender_ids::set_sender, utils::encrypt};
 use chrono::{Duration, Utc};
 use ed25519_dalek::{Signer, SigningKey};
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use itertools::Itertools;
 
 lazy_static! {
     static ref UNPROCESSED_REPORTED_TAGS: Mutex<HashMap<Vec<u8>, Tag>> = Mutex::new(HashMap::new());
@@ -26,7 +26,11 @@ pub struct AccountabilityServer {
 pub struct ReportError(String);
 
 impl AccountabilityServer {
-    pub fn new<R>(maximum_score: i32, reputation_threashold: i32, rng: &mut R) -> AccountabilityServer
+    pub fn new<R>(
+        maximum_score: i32,
+        reputation_threashold: i32,
+        rng: &mut R,
+    ) -> AccountabilityServer
     where
         R: RngCore + CryptoRng,
     {
@@ -110,9 +114,14 @@ impl AccountabilityServer {
         let sender_opt = get_sender_by_handle(&tag.sender_handle);
         match sender_opt {
             Some(sender) => {
-                if sender.reported_tags.contains(tag) || UNPROCESSED_REPORTED_TAGS.lock().unwrap().contains_key(&tag.signature) {
+                if sender.reported_tags.contains(tag)
+                    || UNPROCESSED_REPORTED_TAGS
+                        .lock()
+                        .unwrap()
+                        .contains_key(&tag.signature)
+                {
                     // Tag is already reported, no need to do anything
-                    return Ok(())
+                    return Ok(());
                 }
 
                 let verifying_key = self.signing_key.verifying_key();
@@ -149,8 +158,26 @@ impl AccountabilityServer {
         Ok(())
     }
 
+    fn update_score(
+        current_score: i32,
+        reported_tag_count: i32,
+        maximum_score: i32,
+        score_threashold: i32,
+    ) -> i32 {
+        if reported_tag_count >= score_threashold {
+            return current_score - reported_tag_count + score_threashold;
+        } else if reported_tag_count < score_threashold && current_score >= 0 {
+            return cmp::min(current_score + 1, maximum_score);
+        } else {
+            assert!(reported_tag_count < score_threashold && current_score < 0);
+            return cmp::min(current_score - reported_tag_count + score_threashold, 0);
+        }
+    }
+
     pub fn update_scores(&self) {
         let mut unprocessed_tags = UNPROCESSED_REPORTED_TAGS.lock().unwrap();
+
+        // Group unprocessed tags by sender
         let sender_tags: HashMap<SenderId, Vec<Tag>> = unprocessed_tags
             .iter()
             .map(|(_, tag)| {
@@ -164,11 +191,12 @@ impl AccountabilityServer {
             let mut sender = get_sender_by_id(sender_id).unwrap();
 
             // Update sender score
-            let mut score = sender.score;
-            for tag in tags.iter() {
-                score = cmp::max(score - 1, 0);
-            }
-            sender.score = score;
+            sender.score = AccountabilityServer::update_score(
+                sender.score,
+                tags.len() as i32,
+                self.maximum_score,
+                self.reputation_threashold,
+            );
 
             // Add tags to reported tags
             sender.reported_tags.extend(tags.iter().cloned());
@@ -206,7 +234,12 @@ mod tests {
         for _idx in 0..1000 {
             // Get a random sender
             let sender_idx = rng.next_u32() as usize % 10;
-            tags.push(senders[sender_idx].get_tag("This is the message", "receiver", &server, &mut rng));
+            tags.push(senders[sender_idx].get_tag(
+                "This is the message",
+                "receiver",
+                &server,
+                &mut rng,
+            ));
         }
 
         // Report tags
@@ -223,5 +256,86 @@ mod tests {
         assert!(UNPROCESSED_REPORTED_TAGS.lock().unwrap().is_empty());
 
         clear_sender_records();
+    }
+
+    #[test]
+    fn update_score_test() {
+        let current_score = 100;
+        let reported_tag_count = 10;
+        let maximum_score = 100;
+        let score_threashold = 10;
+        let new_score = AccountabilityServer::update_score(
+            current_score,
+            reported_tag_count,
+            maximum_score,
+            score_threashold,
+        );
+        // current - 10 + 10 = 100
+        assert_eq!(new_score, 100);
+
+        let current_score = 100;
+        let reported_tag_count = 11;
+        let maximum_score = 100;
+        let score_threashold = 10;
+        let new_score = AccountabilityServer::update_score(
+            current_score,
+            reported_tag_count,
+            maximum_score,
+            score_threashold,
+        );
+        // current - 11 + 10 = 99
+        assert_eq!(new_score, 99);
+
+        let current_score = -10;
+        let reported_tag_count = 20;
+        let maximum_score = 100;
+        let score_threashold = 10;
+        let new_score = AccountabilityServer::update_score(
+            current_score,
+            reported_tag_count,
+            maximum_score,
+            score_threashold,
+        );
+        // current - 20 + 10 = -20
+        assert_eq!(new_score, -20);
+
+        let current_score = 100;
+        let reported_tag_count = 9;
+        let maximum_score = 100;
+        let score_threashold = 10;
+        let new_score = AccountabilityServer::update_score(
+            current_score,
+            reported_tag_count,
+            maximum_score,
+            score_threashold,
+        );
+        // Reported tags do not reach threshold and score cannot grow
+        assert_eq!(new_score, 100);
+
+        let current_score = 90;
+        let reported_tag_count = 9;
+        let maximum_score = 100;
+        let score_threashold = 10;
+        let new_score = AccountabilityServer::update_score(
+            current_score,
+            reported_tag_count,
+            maximum_score,
+            score_threashold,
+        );
+        // Reported tags do not reach threshold and score can grow
+        assert_eq!(new_score, 91);
+
+        let current_score = -10;
+        let reported_tag_count = 9;
+        let maximum_score = 100;
+        let score_threashold = 10;
+        let new_score = AccountabilityServer::update_score(
+            current_score,
+            reported_tag_count,
+            maximum_score,
+            score_threashold,
+        );
+        // Reported tags do not reach threshold and score can grow
+        assert_eq!(new_score, -9);
     }
 }
