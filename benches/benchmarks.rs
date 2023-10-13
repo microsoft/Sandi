@@ -1,4 +1,6 @@
-use acctblty::{accountability_server::AccountabilityServer, sender::Sender, tag_verifier, tag::Tag};
+use acctblty::{
+    accountability_server::AccountabilityServer, sender::Sender, tag::Tag, tag_verifier,
+};
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{rngs::OsRng, RngCore};
 

@@ -1,23 +1,32 @@
-use std::cmp;
-
-use crate::sender_ids::SenderRecord;
+use crate::sender_ids::{SenderRecord, get_sender_id, SenderId, get_sender_by_id};
 use crate::tag::Tag;
 use crate::utils::{cipher_block_size, decrypt, verify_signature, SignatureVerificationError};
 use crate::{sender_ids::get_sender_by_handle, sender_ids::set_sender, utils::encrypt};
 use chrono::{Duration, Utc};
 use ed25519_dalek::{Signer, SigningKey};
+use lazy_static::lazy_static;
 use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
+use std::cmp;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use itertools::Itertools;
+
+lazy_static! {
+    static ref UNPROCESSED_REPORTED_TAGS: Mutex<HashMap<Vec<u8>, Tag>> = Mutex::new(HashMap::new());
+}
 
 pub struct AccountabilityServer {
     enc_secret_key: [u8; 32],
     signing_key: SigningKey,
+    maximum_score: i32,
+    reputation_threashold: i32,
 }
 
 pub struct ReportError(String);
 
 impl AccountabilityServer {
-    pub fn new<R>(rng: &mut R) -> AccountabilityServer
+    pub fn new<R>(maximum_score: i32, reputation_threashold: i32, rng: &mut R) -> AccountabilityServer
     where
         R: RngCore + CryptoRng,
     {
@@ -29,6 +38,8 @@ impl AccountabilityServer {
         AccountabilityServer {
             enc_secret_key,
             signing_key,
+            maximum_score,
+            reputation_threashold,
         }
     }
 
@@ -99,8 +110,9 @@ impl AccountabilityServer {
         let sender_opt = get_sender_by_handle(&tag.sender_handle);
         match sender_opt {
             Some(sender) => {
-                if sender.reported_tags.contains(tag) {
-                    return Err(ReportError("Tag is already reported".to_string()));
+                if sender.reported_tags.contains(tag) || UNPROCESSED_REPORTED_TAGS.lock().unwrap().contains_key(&tag.signature) {
+                    // Tag is already reported, no need to do anything
+                    return Ok(())
                 }
 
                 let verifying_key = self.signing_key.verifying_key();
@@ -115,11 +127,11 @@ impl AccountabilityServer {
                             return Err(ReportError("Invalid encrypted sender ID".to_string()));
                         }
 
-                        // Tag is valid, so we add it to the reported tags and reduce the score
-                        let mut new_sender = sender.clone();
-                        new_sender.reported_tags.push(tag.clone());
-                        new_sender.score = cmp::max(0, new_sender.score - 1);
-                        set_sender(new_sender);
+                        // Tag is valid, so we add it to the unprocessed tags
+                        UNPROCESSED_REPORTED_TAGS
+                            .lock()
+                            .unwrap()
+                            .insert(tag.signature.clone(), tag.clone());
                     }
                     Err(SignatureVerificationError(err_msg)) => {
                         return Err(ReportError(format!(
@@ -135,5 +147,81 @@ impl AccountabilityServer {
         }
 
         Ok(())
+    }
+
+    pub fn update_scores(&self) {
+        let mut unprocessed_tags = UNPROCESSED_REPORTED_TAGS.lock().unwrap();
+        let sender_tags: HashMap<SenderId, Vec<Tag>> = unprocessed_tags
+            .iter()
+            .map(|(_, tag)| {
+                let sender_id = get_sender_id(&tag.sender_handle).unwrap();
+                (sender_id, tag.clone())
+            })
+            .into_group_map();
+
+        // Update sender scores
+        for (sender_id, tags) in sender_tags.iter() {
+            let mut sender = get_sender_by_id(sender_id).unwrap();
+
+            // Update sender score
+            let mut score = sender.score;
+            for tag in tags.iter() {
+                score = cmp::max(score - 1, 0);
+            }
+            sender.score = score;
+
+            // Add tags to reported tags
+            sender.reported_tags.extend(tags.iter().cloned());
+
+            // Update sender
+            set_sender(sender);
+        }
+
+        unprocessed_tags.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{sender::Sender, sender_ids::clear_sender_records};
+    use serial_test::serial;
+
+    use super::*;
+
+    #[test]
+    #[serial]
+    fn update_scores_test() {
+        let mut rng = OsRng;
+        let server = AccountabilityServer::new(1000, 10, &mut rng);
+
+        // Initialize senders
+        let mut senders: Vec<Sender> = Vec::new();
+        for i in 0..10 {
+            let sender_handle = format!("sender{}", i);
+            senders.push(Sender::new(&sender_handle));
+        }
+
+        // Get tags
+        let mut tags: Vec<(Tag, Vec<u8>)> = Vec::new();
+        for idx in 0..1000 {
+            // Get a random sender
+            let sender_idx = rng.next_u32() as usize % 10;
+            tags.push(senders[sender_idx].get_tag("This is the message", "receiver", &server, &mut rng));
+        }
+
+        // Report tags
+        for tag in tags {
+            let result = server.report(&tag.0);
+            assert!(result.is_ok());
+        }
+
+        assert!(!UNPROCESSED_REPORTED_TAGS.lock().unwrap().is_empty());
+
+        // Update scores
+        server.update_scores();
+
+        assert!(UNPROCESSED_REPORTED_TAGS.lock().unwrap().is_empty());
+
+        clear_sender_records();
     }
 }

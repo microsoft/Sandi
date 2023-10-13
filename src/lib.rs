@@ -26,7 +26,7 @@ mod tests {
     #[serial]
     fn issue_tag_test() {
         let mut rng = OsRng;
-        let accsvr = AccountabilityServer::new(&mut rng);
+        let accsvr = AccountabilityServer::new(100, 10, &mut rng);
         let sender = Sender::new("sender1");
 
         // Ask for a tag
@@ -47,6 +47,9 @@ mod tests {
         // Report tag
         let report_result = accsvr.report(&tag.0);
         assert!(report_result.is_ok());
+
+        // Update scores
+        accsvr.update_scores();
 
         // Sender should have one report now
         let sender_opt = sender_ids::get_sender_by_handle("sender1");

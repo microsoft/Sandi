@@ -52,6 +52,13 @@ pub(crate) fn get_sender_by_id(id: &SenderId) -> Option<SenderRecord> {
     return Some(sender.clone());
 }
 
+pub(crate) fn get_sender_id(handle: &str) -> Option<SenderId> {
+    let ids = SENDER_IDS.lock().unwrap();
+    let sender_id = ids.get(handle)?;
+
+    return Some(sender_id.clone());
+}
+
 pub(crate) fn set_sender(sender_record: SenderRecord) {
     let mut ids = SENDER_IDS.lock().unwrap();
     let mut records = SENDER_RECORDS.lock().unwrap();
