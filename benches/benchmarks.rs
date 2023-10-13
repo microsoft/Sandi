@@ -6,7 +6,7 @@ use rand::{rngs::OsRng, RngCore};
 
 fn get_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(&mut rng);
+    let server = AccountabilityServer::new(100, 10, &mut rng);
     let sender = Sender::new("sender1");
 
     let message = "This is a test message";
@@ -19,7 +19,7 @@ fn get_tag_bench(c: &mut Criterion) {
 
 fn issue_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(&mut rng);
+    let server = AccountabilityServer::new(100, 10, &mut rng);
 
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
@@ -34,7 +34,7 @@ fn issue_tag_bench(c: &mut Criterion) {
 
 fn verify_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(&mut rng);
+    let server = AccountabilityServer::new(100, 10, &mut rng);
     let sender = Sender::new("sender1");
     let verifying_key = server.get_verifying_key();
 
@@ -52,7 +52,7 @@ fn verify_tag_bench(c: &mut Criterion) {
 
 fn report_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(&mut rng);
+    let server = AccountabilityServer::new(100, 10, &mut rng);
 
     const NUM_SENDERS: usize = 1000000;
 
@@ -86,7 +86,7 @@ fn report_tag_bench(c: &mut Criterion) {
 
 fn end_to_end_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(&mut rng);
+    let server = AccountabilityServer::new(100, 10, &mut rng);
     let sender = Sender::new("sender1");
     let verifying_key = server.get_verifying_key();
 
@@ -98,6 +98,7 @@ fn end_to_end_bench(c: &mut Criterion) {
             let tag = sender.get_tag(msg, receiver_handle, &server, &mut rng);
             let _ = tag_verifier::verify(receiver_handle, msg, &tag.0, &tag.1, &verifying_key);
             let _ = server.report(&tag.0);
+            server.update_scores();
         })
     });
 }

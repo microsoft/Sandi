@@ -203,7 +203,7 @@ mod tests {
 
         // Get tags
         let mut tags: Vec<(Tag, Vec<u8>)> = Vec::new();
-        for idx in 0..1000 {
+        for _idx in 0..1000 {
             // Get a random sender
             let sender_idx = rng.next_u32() as usize % 10;
             tags.push(senders[sender_idx].get_tag("This is the message", "receiver", &server, &mut rng));
