@@ -1,4 +1,4 @@
-use curve25519_dalek::{RistrettoPoint, Scalar};
+pub(crate) use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 
@@ -6,10 +6,10 @@ use crate::utils::G;
 
 #[allow(non_snake_case)]
 pub fn prove<R>(
-    message: RistrettoPoint,
-    signature: RistrettoPoint,
-    secret_key: Scalar,
-    public_key: RistrettoPoint,
+    message: RistrettoPoint, // X
+    signature: RistrettoPoint, // Q
+    public_key: RistrettoPoint, // R
+    secret_key: Scalar, // esk
     rng: &mut R,
 ) -> (Scalar, Scalar)
 where
@@ -23,36 +23,37 @@ where
     let B = message * randomness;
 
     let mut hasher = Sha256::new();
-    hasher.update(public_key.compress().as_bytes());
-    hasher.update(message.compress().as_bytes());
-    hasher.update(signature.compress().as_bytes());
-    hasher.update(A.compress().as_bytes());
-    hasher.update(B.compress().as_bytes());
+    hasher.update(message.compress().as_bytes());    // X
+    hasher.update(signature.compress().as_bytes());  // Q
+    hasher.update(public_key.compress().as_bytes()); // R
+    hasher.update(A.compress().as_bytes());          // A
+    hasher.update(B.compress().as_bytes());          // B
     let hashed_points = hasher.finalize();
     let challenge = Scalar::from_bytes_mod_order(hashed_points.try_into().unwrap());
     let chall_sk = challenge * secret_key;
     let response = randomness - chall_sk;
 
+    // c, s
     return (challenge, response);
 }
 
 #[allow(non_snake_case)]
 pub fn verify(
-    proof: (Scalar, Scalar),
-    message: RistrettoPoint,
-    signature: RistrettoPoint,
-    public_key: RistrettoPoint,
+    proof: (Scalar, Scalar), // z
+    message: RistrettoPoint, // X
+    signature: RistrettoPoint, // Q
+    public_key: RistrettoPoint, // R
 ) -> bool {
     let (challenge, response) = proof;
     let A = G() * response + public_key * challenge;
     let B = message * response + signature * challenge;
 
     let mut hasher = Sha256::new();
-    hasher.update(public_key.compress().as_bytes());
-    hasher.update(message.compress().as_bytes());
-    hasher.update(signature.compress().as_bytes());
-    hasher.update(A.compress().as_bytes());
-    hasher.update(B.compress().as_bytes());
+    hasher.update(message.compress().as_bytes());     // X
+    hasher.update(signature.compress().as_bytes());   // Q
+    hasher.update(public_key.compress().as_bytes());  // R
+    hasher.update(A.compress().as_bytes());           // A
+    hasher.update(B.compress().as_bytes());           // B
     let hashed_points = hasher.finalize();
     let challenge2 = Scalar::from_bytes_mod_order(hashed_points.try_into().unwrap());
 
@@ -76,7 +77,7 @@ mod tests {
         let signature = message * secret_key;
         let public_key = G() * secret_key;
 
-        let proof = prove(message, signature, secret_key, public_key, &mut rng);
+        let proof = prove(message, signature, public_key, secret_key, &mut rng);
         let result = verify(proof, message, signature, public_key);
 
         assert_eq!(result, true);
@@ -91,7 +92,7 @@ mod tests {
         let signature = G() * random_scalar(&mut rng);
         let public_key = G() * secret_key;
 
-        let proof = prove(message, signature, secret_key, public_key, &mut rng);
+        let proof = prove(message, signature, public_key, secret_key, &mut rng);
         let result = verify(proof, message, signature, public_key);
 
         assert_eq!(result, false);
