@@ -2,12 +2,13 @@ use acctblty::{
     accountability_server::AccountabilityServer, sender::Sender, tag::Tag, tag_verifier,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
+use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand::{rngs::OsRng, RngCore};
 
 fn get_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let server = AccountabilityServer::new(100, 10, &mut rng);
-    let sender = Sender::new("sender1");
+    let sender = Sender::new("sender1", &mut rng);
 
     let message = "This is a test message";
     let receiver_handle = "receiver_handle";
@@ -28,31 +29,32 @@ fn issue_tag_bench(c: &mut Criterion) {
     let tag_duration = 24;
 
     c.bench_function("issue_tag", |b| {
-        b.iter(|| server.issue_tag(&commitment.to_vec(), sender_handle, tag_duration))
+        b.iter(|| server.issue_tag(&commitment.to_vec(), sender_handle, tag_duration, &mut rng))
     });
 }
 
 fn verify_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(100, 10, &mut rng);
-    let sender = Sender::new("sender1");
+    let mut server = AccountabilityServer::new(100, 10, &mut rng);
+    let sender = Sender::new("sender1", &mut rng);
+    server.set_sender_pk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
 
     let receiver_handle = "receiver_handle";
     let msg = "This is a test message";
 
-    let tag = sender.get_tag(msg, receiver_handle, &server, &mut rng);
+    let tag = sender.get_tag(msg, receiver_handle, &server, &mut rng).unwrap();
 
     c.bench_function("verify_tag", |b| {
         b.iter(|| {
-            let _ = tag_verifier::verify(receiver_handle, msg, &tag.0, &tag.1, &verifying_key);
+            let _ = tag_verifier::verify(receiver_handle, msg, &tag.0, &tag.1, &tag.2, &tag.3, &verifying_key);
         })
     });
 }
 
 fn report_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(100, 10, &mut rng);
 
     const NUM_SENDERS: usize = 1000000;
 
@@ -60,23 +62,26 @@ fn report_tag_bench(c: &mut Criterion) {
     let mut senders: Vec<Sender> = Vec::new();
     for i in 0..NUM_SENDERS {
         let sender_handle = format!("sender{}", i);
-        senders.push(Sender::new(&sender_handle));
+        let sender = Sender::new(&sender_handle, &mut rng);
+        server.set_sender_pk(&sender.epk, &sender.handle);
+        senders.push(sender);
     }
 
     let receiver_handle = "receiver_handle";
     let msg = "This is a test message";
 
     // Get NUM_SENDERS tags
-    let mut tags: Vec<(Tag, Vec<u8>)> = Vec::new();
+    let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
     for idx in 0..NUM_SENDERS {
-        tags.push(senders[idx].get_tag(msg, receiver_handle, &server, &mut rng));
+        tags.push(senders[idx].get_tag(msg, receiver_handle, &server, &mut rng).unwrap());
     }
 
     let mut idx = 0;
 
     c.bench_function("report_tag", |b| {
         b.iter(|| {
-            let result = server.report(&tags[idx as usize].0);
+            let tag = tags.get(idx as usize).unwrap();
+            let result = server.report(tag.0.clone(), tag.2, tag.3);
             assert!(result.is_ok());
             idx = idx + 1;
             assert!(idx < NUM_SENDERS);
@@ -86,8 +91,9 @@ fn report_tag_bench(c: &mut Criterion) {
 
 fn end_to_end_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(100, 10, &mut rng);
-    let sender = Sender::new("sender1");
+    let mut server = AccountabilityServer::new(100, 10, &mut rng);
+    let sender = Sender::new("sender1", &mut rng);
+    server.set_sender_pk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
 
     let receiver_handle = "receiver_handle";
@@ -95,9 +101,9 @@ fn end_to_end_bench(c: &mut Criterion) {
 
     c.bench_function("end_to_end", |b| {
         b.iter(|| {
-            let tag = sender.get_tag(msg, receiver_handle, &server, &mut rng);
-            let _ = tag_verifier::verify(receiver_handle, msg, &tag.0, &tag.1, &verifying_key);
-            let _ = server.report(&tag.0);
+            let tag = sender.get_tag(msg, receiver_handle, &server, &mut rng).unwrap();
+            let _ = tag_verifier::verify(receiver_handle, msg, &tag.0, &tag.1, &tag.2, &tag.3,&verifying_key);
+            let _ = server.report(tag.0, tag.2, tag.3);
             server.update_scores();
         })
     });
