@@ -10,7 +10,6 @@ rand = { version = "0.8" }
 aes = "0.8"
 hmac = "0.12"
 curve25519-dalek = { version = "4.1", features = [ "serde", "digest" ]}
-lazy_static = "1.4"
 ed25519-dalek = { version = "2.0", features = [ "batch", "digest", "serde" ]}
 chrono = "0.4"
 itertools = "0.11"

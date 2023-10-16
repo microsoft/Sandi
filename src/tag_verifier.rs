@@ -1,6 +1,7 @@
 use crate::{
+    nizqdleq,
     tag::Tag,
-    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError}, nizqdleq,
+    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError},
 };
 use chrono::Utc;
 use curve25519_dalek::{RistrettoPoint, Scalar};
@@ -52,10 +53,49 @@ pub fn verify(
     }
 
     // Verify NIZKDLEG
-    let nizqdleq_result = nizqdleq::verify(&tag.basepoint_order, &tag.g_prime, proof, &tag.x_big, &tag.q_big, r_big);
+    let nizqdleq_result = nizqdleq::verify(
+        &tag.basepoint_order,
+        &tag.g_prime,
+        proof,
+        &tag.x_big,
+        &tag.q_big,
+        r_big,
+    );
     if !nizqdleq_result {
         return Err(VerificationError("Invalid NIZKDLEQ proof".to_string()));
     }
 
     Ok(tag.score)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::accountability_server::AccountabilityServer;
+    use crate::sender::Sender;
+    use rand::rngs::OsRng;
+
+    #[test]
+    fn verify_tag_test() {
+        let receiver_handle = "receiver";
+        let message = "message to be sent";
+        let mut rng = OsRng;
+        let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
+        let sender = Sender::new("sender", &mut rng);
+        accsvr.set_sender_pk(&sender.epk, &sender.handle);
+
+        let tag = sender.get_tag(message, receiver_handle, &accsvr, &mut rng);
+
+        // Tag should be valid
+        let verif_result = verify(
+            receiver_handle,
+            message,
+            &tag.0,
+            &tag.1,
+            &tag.2,
+            &tag.3,
+            &accsvr.get_verifying_key(),
+        );
+        assert!(verif_result.is_ok(), "{}", verif_result.unwrap_err().0);
+    }
 }

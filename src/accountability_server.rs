@@ -1,28 +1,26 @@
-use crate::sender_ids::{get_sender_by_id, get_sender_id, SenderId, SenderRecord};
+use crate::sender_ids::{SenderId, SenderRecord, SenderRecords};
 use crate::tag::Tag;
-use crate::utils::{cipher_block_size, decrypt, verify_signature, SignatureVerificationError, get_random_scalar, G, basepoint_order};
-use crate::{sender_ids::get_sender_by_handle, sender_ids::set_sender, utils::encrypt};
+use crate::utils::{
+    basepoint_order, cipher_block_size, concat_id_and_scalars, encrypt, decrypt, random_scalar,
+    verify_signature, SignatureVerificationError, G,
+};
 use chrono::{Duration, Utc};
 use curve25519_dalek::RistrettoPoint;
 use ed25519_dalek::{Signer, SigningKey};
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
 use sha2::Sha512;
 use std::cmp;
 use std::collections::HashMap;
-use std::sync::Mutex;
-
-lazy_static! {
-    static ref UNPROCESSED_REPORTED_TAGS: Mutex<HashMap<Vec<u8>, Tag>> = Mutex::new(HashMap::new());
-}
 
 pub struct AccountabilityServer {
     enc_secret_key: [u8; 32],
     signing_key: SigningKey,
     maximum_score: i32,
     reputation_threashold: i32,
+    pub(crate) sender_records: SenderRecords,
+    pub(crate) unprocessed_reported_tags: HashMap<Vec<u8>, Tag>,
 }
 
 pub struct ReportError(String);
@@ -40,43 +38,53 @@ impl AccountabilityServer {
         rng.fill_bytes(&mut enc_secret_key);
 
         let signing_key = SigningKey::generate(rng);
+        let sender_records = SenderRecords::new();
+        let unprocessed_reported_tags = HashMap::new();
 
         AccountabilityServer {
             enc_secret_key,
             signing_key,
             maximum_score,
             reputation_threashold,
+            sender_records,
+            unprocessed_reported_tags,
         }
     }
 
-    pub fn set_sender_pk(&self, epk: &RistrettoPoint, sender_handle: &str) {
-        let sender_opt = get_sender_by_handle(sender_handle);
+    pub fn set_sender_pk(&mut self, epk: &RistrettoPoint, sender_handle: &str) {
+        let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
         match sender_opt {
             Some(mut sender) => {
                 sender.epk = epk.clone();
-                set_sender(sender);
+                self.sender_records.set_sender(sender);
             }
             None => {
                 let mut rng = OsRng;
                 let mut sender = SenderRecord::new(sender_handle, &mut rng);
                 sender.epk = epk.clone();
-                set_sender(sender);
+                self.sender_records.set_sender(sender);
             }
         }
     }
 
-    pub fn issue_tag<R>(&self, commitment: &Vec<u8>, sender_handle: &str, tag_duration: u32, rng: &mut R) -> Tag
-    where 
-        R: RngCore + CryptoRng, {
+    pub fn issue_tag<R>(
+        &self,
+        commitment: &Vec<u8>,
+        sender_handle: &str,
+        tag_duration: u32,
+        rng: &mut R,
+    ) -> Tag
+    where
+        R: RngCore + CryptoRng,
+    {
         // First, we need to check if the sender_handle is valid
-        let mut sender_opt = get_sender_by_handle(sender_handle);
-        if sender_opt.is_none() {
-            let mut rng = OsRng;
-            let sender = SenderRecord::new(sender_handle, &mut rng);
-            set_sender(sender.clone());
-            sender_opt = Some(sender);
-        }
-
+        let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
+        // if sender_opt.is_none() {
+        //     let mut rng = OsRng;
+        //     let sender = SenderRecord::new(sender_handle, &mut rng);
+        //     set_sender(sender.clone());
+        //     sender_opt = Some(sender);
+        // }
         let sender = sender_opt.expect("Sender should exist");
 
         // Check sender id size
@@ -87,24 +95,26 @@ impl AccountabilityServer {
             );
         }
 
-        // Then, we encrypt the sender ID
-        let mut encrypted_sender_id = sender.id.clone();
-        encrypt(&self.enc_secret_key, &mut encrypted_sender_id);
-
         // s is random scalar
-        let s = get_random_scalar(rng);
+        let s = random_scalar(rng);
 
         // G'
-        let new_basepoint = s * G();
+        let g_prime = s * G();
+
         // X
         let x_big = s * sender.epk;
+
         // n, r
-        let n = get_random_scalar(rng);
-        let r = get_random_scalar(rng);
+        let n = random_scalar(rng);
+        let r = random_scalar(rng);
 
         // Q
         let hashed_n = RistrettoPoint::hash_from_bytes::<Sha512>(n.as_bytes());
         let q_big = r * hashed_n;
+
+        // Then, we encrypt the sender ID, n and r
+        let mut encrypted_sender_id = concat_id_and_scalars(&sender.id, &n, &r);
+        encrypt(&self.enc_secret_key, &mut encrypted_sender_id);
 
         // Get expiration date for the tag
         // tag_duration is in hours
@@ -120,7 +130,7 @@ impl AccountabilityServer {
         data_to_sign.extend_from_slice(basepoint_order().as_bytes()); // q
         data_to_sign.extend_from_slice(G().compress().as_bytes()); // G
         data_to_sign.extend_from_slice(q_big.compress().as_bytes()); // Q
-        data_to_sign.extend_from_slice(new_basepoint.compress().as_bytes()); // G'
+        data_to_sign.extend_from_slice(g_prime.compress().as_bytes()); // G'
         data_to_sign.extend_from_slice(x_big.compress().as_bytes()); // X
 
         let signature = self.signing_key.sign(&data_to_sign);
@@ -134,7 +144,7 @@ impl AccountabilityServer {
             basepoint_order: basepoint_order(),
             basepoint: G(),
             q_big,
-            g_prime: new_basepoint,
+            g_prime,
             x_big,
             signature: signature.to_vec(),
         };
@@ -147,24 +157,20 @@ impl AccountabilityServer {
         vk.to_bytes().to_vec()
     }
 
-    pub fn report(&self, tag: &Tag) -> Result<(), ReportError> {
+    pub fn report(&mut self, tag: Tag) -> Result<(), ReportError> {
         // Check if tag is expired
         if tag.exp_timestamp < Utc::now().timestamp() {
             return Err(ReportError("Tag is expired".to_string()));
         }
 
         // Verify if tag is already reported, pending
-        if UNPROCESSED_REPORTED_TAGS
-            .lock()
-            .unwrap()
-            .contains_key(&tag.signature)
-        {
+        if self.unprocessed_reported_tags.contains_key(&tag.signature)        {
             return Ok(());
         }
 
         // Verify tag signature
         let verifying_key = self.signing_key.verifying_key();
-        let signature_result = verify_signature(tag, &verifying_key);
+        let signature_result = verify_signature(&tag, &verifying_key);
         match signature_result {
             Ok(_) => {}
             Err(SignatureVerificationError(err_msg)) => {
@@ -183,19 +189,17 @@ impl AccountabilityServer {
         let mut sender_id = [0u8; 16];
         sender_id.copy_from_slice(&decrypted_sender_id[..16]);
 
-        let sender_opt = get_sender_by_id(&sender_id);
+        let sender_opt = self.sender_records.get_sender_by_id(&sender_id);
         match sender_opt {
             Some(sender) => {
-                if sender.reported_tags.contains(tag) {
+                if sender.reported_tags.contains(&tag) {
                     // Tag is already reported, no need to do anything
                     return Ok(());
                 }
 
                 // Tag is valid, so we add it to the unprocessed tags
-                UNPROCESSED_REPORTED_TAGS
-                    .lock()
-                    .unwrap()
-                    .insert(tag.signature.clone(), tag.clone());
+                self.unprocessed_reported_tags
+                    .insert(tag.signature.clone(), tag);
             }
             None => {
                 return Err(ReportError("Invalid sender".to_string()));
@@ -221,11 +225,9 @@ impl AccountabilityServer {
         }
     }
 
-    pub fn update_scores(&self) {
-        let mut unprocessed_tags = UNPROCESSED_REPORTED_TAGS.lock().unwrap();
-
+    pub fn update_scores(&mut self) {
         // Group unprocessed tags by sender
-        let sender_tags: HashMap<SenderId, Vec<Tag>> = unprocessed_tags
+        let sender_tags: HashMap<SenderId, Vec<Tag>> = self.unprocessed_reported_tags
             .iter()
             .map(|(_, tag)| {
                 let mut decrypted_sender_id = tag.enc_sender_id.clone();
@@ -238,7 +240,7 @@ impl AccountabilityServer {
 
         // Update sender scores
         for (sender_id, tags) in sender_tags.iter() {
-            let mut sender = get_sender_by_id(sender_id).unwrap();
+            let mut sender = self.sender_records.get_sender_by_id(sender_id).unwrap();
 
             // Update sender score
             sender.score = AccountabilityServer::update_score(
@@ -252,16 +254,16 @@ impl AccountabilityServer {
             sender.reported_tags.extend(tags.iter().cloned());
 
             // Update sender
-            set_sender(sender);
+            self.sender_records.set_sender(sender);
         }
 
-        unprocessed_tags.clear();
+        self.unprocessed_reported_tags.clear();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{sender::Sender, sender_ids::clear_sender_records};
+    use crate::sender::Sender;
     use serial_test::serial;
 
     use super::*;
@@ -270,7 +272,7 @@ mod tests {
     #[serial]
     fn update_scores_test() {
         let mut rng = OsRng;
-        let server = AccountabilityServer::new(1000, 10, &mut rng);
+        let mut server = AccountabilityServer::new(1000, 10, &mut rng);
 
         // Initialize senders
         let mut senders: Vec<Sender> = Vec::new();
@@ -284,28 +286,25 @@ mod tests {
         for _idx in 0..1000 {
             // Get a random sender
             let sender_idx = rng.next_u32() as usize % 10;
-            tags.push(senders[sender_idx].get_tag(
-                "This is the message",
-                "receiver",
-                &server,
-                &mut rng,
-            ).0);
+            tags.push(
+                senders[sender_idx]
+                    .get_tag("This is the message", "receiver", &server, &mut rng)
+                    .0,
+            );
         }
 
         // Report tags
         for tag in tags {
-            let result = server.report(&tag);
+            let result = server.report(tag);
             assert!(result.is_ok());
         }
 
-        assert!(!UNPROCESSED_REPORTED_TAGS.lock().unwrap().is_empty());
+        assert!(!server.unprocessed_reported_tags.is_empty());
 
         // Update scores
         server.update_scores();
 
-        assert!(UNPROCESSED_REPORTED_TAGS.lock().unwrap().is_empty());
-
-        clear_sender_records();
+        assert!(server.unprocessed_reported_tags.is_empty());
     }
 
     #[test]

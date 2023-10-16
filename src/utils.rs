@@ -6,11 +6,14 @@ use aes::{
     },
     Aes256,
 };
-use curve25519_dalek::{constants::{RISTRETTO_BASEPOINT_POINT, BASEPOINT_ORDER}, RistrettoPoint, Scalar};
+use curve25519_dalek::{
+    constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT},
+    RistrettoPoint, Scalar,
+};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use rand::{CryptoRng, RngCore};
 
-use crate::tag::Tag;
+use crate::{sender_ids::SenderId, tag::Tag};
 
 pub fn random_scalar<R>(rng: &mut R) -> Scalar
 where
@@ -28,15 +31,6 @@ pub fn G() -> RistrettoPoint {
 
 pub fn basepoint_order() -> Scalar {
     BASEPOINT_ORDER
-}
-
-pub fn get_random_scalar<R>(rng: &mut R) -> Scalar
-where
-    R: RngCore + CryptoRng,
-{
-    let mut bytes = [0u8; 32];
-    rng.fill_bytes(&mut bytes);
-    Scalar::from_bytes_mod_order(bytes)
 }
 
 pub fn encrypt(key: &[u8], message: &mut [u8]) {
@@ -126,6 +120,14 @@ pub fn verifying_key_from_vec(vk: &Vec<u8>) -> Result<VerifyingKey, String> {
     Ok(verifying_key)
 }
 
+pub fn concat_id_and_scalars(id: &SenderId, s1: &Scalar, s2: &Scalar) -> Vec<u8> {
+    let mut result = Vec::new();
+    result.extend_from_slice(id);
+    result.extend_from_slice(s1.as_bytes());
+    result.extend_from_slice(s2.as_bytes());
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use rand::rngs::OsRng;
@@ -179,5 +181,18 @@ mod tests {
         decrypt(&key, message.as_mut());
         // message is now decrypted
         assert_eq!(message, message2);
+    }
+
+    #[test]
+    fn test_concat_id() {
+        let id = [0u8; 16];
+        let s1 = Scalar::from_bytes_mod_order([1u8; 32]);
+        let s2 = Scalar::from_bytes_mod_order([2u8; 32]);
+        let result = concat_id_and_scalars(&id, &s1, &s2);
+        assert_eq!(result.len(), 80);
+        assert_eq!(result[..16], id);
+        assert_eq!(result[16..48].to_vec(), s1.as_bytes().to_vec());
+        assert_eq!(result[48..80].to_vec(), s2.as_bytes().to_vec());
+        assert!(result.len() % cipher_block_size() == 0);
     }
 }

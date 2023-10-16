@@ -1,4 +1,4 @@
-use curve25519_dalek::{Scalar, RistrettoPoint};
+use curve25519_dalek::{RistrettoPoint, Scalar};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
