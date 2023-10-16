@@ -6,6 +6,8 @@ use crate::utils::G;
 
 #[allow(non_snake_case)]
 pub fn prove<R>(
+    order: Scalar, // q
+    basepoint: RistrettoPoint, // G'
     message: RistrettoPoint, // X
     signature: RistrettoPoint, // Q
     public_key: RistrettoPoint, // R
@@ -19,10 +21,12 @@ where
     rng.fill_bytes(&mut bytes);
     let randomness = Scalar::from_bytes_mod_order(bytes);
 
-    let A = G() * randomness;
+    let A = basepoint * randomness;
     let B = message * randomness;
 
     let mut hasher = Sha256::new();
+    hasher.update(order.as_bytes());                 // q
+    hasher.update(basepoint.compress().as_bytes());  // G'
     hasher.update(message.compress().as_bytes());    // X
     hasher.update(signature.compress().as_bytes());  // Q
     hasher.update(public_key.compress().as_bytes()); // R
@@ -39,6 +43,8 @@ where
 
 #[allow(non_snake_case)]
 pub fn verify(
+    order: Scalar, // q
+    basepoint: RistrettoPoint, // G'
     proof: (Scalar, Scalar), // z
     message: RistrettoPoint, // X
     signature: RistrettoPoint, // Q
@@ -49,6 +55,8 @@ pub fn verify(
     let B = message * response + signature * challenge;
 
     let mut hasher = Sha256::new();
+    hasher.update(order.as_bytes());                  // q
+    hasher.update(basepoint.compress().as_bytes());   // G'
     hasher.update(message.compress().as_bytes());     // X
     hasher.update(signature.compress().as_bytes());   // Q
     hasher.update(public_key.compress().as_bytes());  // R
@@ -64,7 +72,7 @@ pub fn verify(
 mod tests {
     use sha2::Sha512;
 
-    use crate::utils::random_scalar;
+    use crate::utils::{random_scalar, basepoint_order};
 
     use super::*;
 
@@ -72,13 +80,15 @@ mod tests {
     #[allow(non_snake_case)]
     fn test_correct_proof() {
         let mut rng = rand::thread_rng();
+        let order = basepoint_order();
+        let basepoint = G();
         let message = RistrettoPoint::hash_from_bytes::<Sha512>(b"hello world");
         let secret_key = random_scalar(&mut rng);
         let signature = message * secret_key;
-        let public_key = G() * secret_key;
+        let public_key = basepoint * secret_key;
 
-        let proof = prove(message, signature, public_key, secret_key, &mut rng);
-        let result = verify(proof, message, signature, public_key);
+        let proof = prove(order, basepoint, message, signature, public_key, secret_key, &mut rng);
+        let result = verify(order, basepoint, proof, message, signature, public_key);
 
         assert_eq!(result, true);
     }
@@ -87,13 +97,15 @@ mod tests {
     #[allow(non_snake_case)]
     fn test_incorrect_proof() {
         let mut rng = rand::thread_rng();
+        let order = basepoint_order();
+        let basepoint = G();
         let message = RistrettoPoint::hash_from_bytes::<Sha512>(b"hello world");
         let secret_key = random_scalar(&mut rng);
-        let signature = G() * random_scalar(&mut rng);
-        let public_key = G() * secret_key;
+        let signature = basepoint * random_scalar(&mut rng);
+        let public_key = basepoint * secret_key;
 
-        let proof = prove(message, signature, public_key, secret_key, &mut rng);
-        let result = verify(proof, message, signature, public_key);
+        let proof = prove(order, basepoint, message, signature, public_key, secret_key, &mut rng);
+        let result = verify(order, basepoint, proof, message, signature, public_key);
 
         assert_eq!(result, false);
     }

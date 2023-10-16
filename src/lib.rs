@@ -27,7 +27,7 @@ mod tests {
     fn issue_tag_test() {
         let mut rng = OsRng;
         let accsvr = AccountabilityServer::new(100, 10, &mut rng);
-        let sender = Sender::new("sender1");
+        let sender = Sender::new("sender1", &mut rng);
 
         // Ask for a tag
         let msg = "This is a test message";

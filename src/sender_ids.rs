@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Mutex};
 
-use crate::tag::Tag;
+use crate::{tag::Tag, utils::G};
+use curve25519_dalek::RistrettoPoint;
 use lazy_static::lazy_static;
 use rand::{CryptoRng, RngCore};
 
@@ -15,6 +16,7 @@ pub type SenderId = [u8; 16];
 pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
+    pub epk: RistrettoPoint,
     pub score: i32,
     pub reported_tags: Vec<Tag>,
 }
@@ -26,10 +28,12 @@ impl SenderRecord {
     {
         let mut sender_id = [0u8; 16];
         rng.fill_bytes(&mut sender_id);
+        let epk = G();
 
         SenderRecord {
             id: sender_id,
             handles: vec![handle.to_string()],
+            epk: epk,
             score: 100,
             reported_tags: vec![],
         }

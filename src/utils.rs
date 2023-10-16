@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use aes::{
     cipher::{
         generic_array::GenericArray, BlockDecrypt, BlockEncrypt, BlockSizeUser, KeyInit,
@@ -5,7 +6,7 @@ use aes::{
     },
     Aes256,
 };
-use curve25519_dalek::{constants::RISTRETTO_BASEPOINT_POINT, RistrettoPoint, Scalar};
+use curve25519_dalek::{constants::{RISTRETTO_BASEPOINT_POINT, BASEPOINT_ORDER}, RistrettoPoint, Scalar};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use rand::{CryptoRng, RngCore};
 
@@ -23,6 +24,10 @@ where
 #[allow(non_snake_case)]
 pub fn G() -> RistrettoPoint {
     RISTRETTO_BASEPOINT_POINT
+}
+
+pub fn basepoint_order() -> Scalar {
+    BASEPOINT_ORDER
 }
 
 pub fn encrypt(key: &[u8], message: &mut [u8]) {

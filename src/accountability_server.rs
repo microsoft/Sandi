@@ -3,6 +3,7 @@ use crate::tag::Tag;
 use crate::utils::{cipher_block_size, decrypt, verify_signature, SignatureVerificationError};
 use crate::{sender_ids::get_sender_by_handle, sender_ids::set_sender, utils::encrypt};
 use chrono::{Duration, Utc};
+use curve25519_dalek::RistrettoPoint;
 use ed25519_dalek::{Signer, SigningKey};
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -45,6 +46,12 @@ impl AccountabilityServer {
             maximum_score,
             reputation_threashold,
         }
+    }
+
+    pub fn set_sender_pk(epk: RistrettoPoint, sender_id: &SenderId) {
+        let mut sender = get_sender_by_id(sender_id).unwrap();
+        sender.epk = epk;
+        set_sender(sender);
     }
 
     pub fn issue_tag(&self, commitment: &Vec<u8>, sender_handle: &str, tag_duration: u32) -> Tag {
@@ -226,7 +233,7 @@ mod tests {
         let mut senders: Vec<Sender> = Vec::new();
         for i in 0..10 {
             let sender_handle = format!("sender{}", i);
-            senders.push(Sender::new(&sender_handle));
+            senders.push(Sender::new(&sender_handle, &mut rng));
         }
 
         // Get tags
