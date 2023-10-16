@@ -41,7 +41,7 @@ where
     R: RngCore + CryptoRng,
 {
     let signed_message = blinded_message * secret_key;
-    let proof = prove(basepoint_order(), G(), blinded_message, signed_message, public_key, secret_key, rng);
+    let proof = prove(&basepoint_order(), &G(), &blinded_message, &signed_message, &public_key, &secret_key, rng);
 
     return (signed_message, proof);
 }

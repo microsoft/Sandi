@@ -36,7 +36,7 @@ mod tests {
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
-        let verif_result = tag_verifier::verify(receiver_handle, msg, &tag.0, &tag.1, &vk);
+        let verif_result = tag_verifier::verify(&receiver_handle, &msg, &tag.0, &tag.1, &tag.2, &tag.3, &vk);
         assert!(verif_result.is_ok());
 
         // Sender should have no reports

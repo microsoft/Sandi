@@ -30,6 +30,15 @@ pub fn basepoint_order() -> Scalar {
     BASEPOINT_ORDER
 }
 
+pub fn get_random_scalar<R>(rng: &mut R) -> Scalar
+where
+    R: RngCore + CryptoRng,
+{
+    let mut bytes = [0u8; 32];
+    rng.fill_bytes(&mut bytes);
+    Scalar::from_bytes_mod_order(bytes)
+}
+
 pub fn encrypt(key: &[u8], message: &mut [u8]) {
     if key.len() != Aes256::key_size() {
         panic!("Key size is not {} bytes", Aes256::key_size());
@@ -80,7 +89,11 @@ pub fn verify_signature(
     data_to_sign.extend_from_slice(tag.exp_timestamp.to_be_bytes().as_slice());
     data_to_sign.extend_from_slice(tag.score.to_be_bytes().as_slice());
     data_to_sign.extend_from_slice(&tag.enc_sender_id);
-    data_to_sign.extend_from_slice(tag.sender_handle.as_bytes());
+    data_to_sign.extend_from_slice(tag.basepoint_order.as_bytes());
+    data_to_sign.extend_from_slice(tag.basepoint.compress().as_bytes());
+    data_to_sign.extend_from_slice(tag.q_big.compress().as_bytes());
+    data_to_sign.extend_from_slice(tag.g_prime.compress().as_bytes());
+    data_to_sign.extend_from_slice(tag.x_big.compress().as_bytes());
 
     let sigbytes: [u8; 64] = tag.signature[..64]
         .try_into()

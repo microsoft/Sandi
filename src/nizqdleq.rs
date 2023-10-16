@@ -6,12 +6,12 @@ use crate::utils::G;
 
 #[allow(non_snake_case)]
 pub fn prove<R>(
-    order: Scalar, // q
-    basepoint: RistrettoPoint, // G'
-    message: RistrettoPoint, // X
-    signature: RistrettoPoint, // Q
-    public_key: RistrettoPoint, // R
-    secret_key: Scalar, // esk
+    order: &Scalar, // q
+    basepoint: &RistrettoPoint, // G'
+    message: &RistrettoPoint, // X
+    signature: &RistrettoPoint, // Q
+    public_key: &RistrettoPoint, // R
+    secret_key: &Scalar, // esk
     rng: &mut R,
 ) -> (Scalar, Scalar)
 where
@@ -43,12 +43,12 @@ where
 
 #[allow(non_snake_case)]
 pub fn verify(
-    order: Scalar, // q
-    basepoint: RistrettoPoint, // G'
-    proof: (Scalar, Scalar), // z
-    message: RistrettoPoint, // X
-    signature: RistrettoPoint, // Q
-    public_key: RistrettoPoint, // R
+    order: &Scalar, // q
+    basepoint: &RistrettoPoint, // G'
+    proof: &(Scalar, Scalar), // z
+    message: &RistrettoPoint, // X
+    signature: &RistrettoPoint, // Q
+    public_key: &RistrettoPoint, // R
 ) -> bool {
     let (challenge, response) = proof;
     let A = G() * response + public_key * challenge;
@@ -65,7 +65,7 @@ pub fn verify(
     let hashed_points = hasher.finalize();
     let challenge2 = Scalar::from_bytes_mod_order(hashed_points.try_into().unwrap());
 
-    return challenge == challenge2;
+    return *challenge == challenge2;
 }
 
 #[cfg(test)]
@@ -87,8 +87,8 @@ mod tests {
         let signature = message * secret_key;
         let public_key = basepoint * secret_key;
 
-        let proof = prove(order, basepoint, message, signature, public_key, secret_key, &mut rng);
-        let result = verify(order, basepoint, proof, message, signature, public_key);
+        let proof = prove(&order, &basepoint, &message, &signature, &public_key, &secret_key, &mut rng);
+        let result = verify(&order, &basepoint, &proof, &message, &signature, &public_key);
 
         assert_eq!(result, true);
     }
@@ -104,8 +104,8 @@ mod tests {
         let signature = basepoint * random_scalar(&mut rng);
         let public_key = basepoint * secret_key;
 
-        let proof = prove(order, basepoint, message, signature, public_key, secret_key, &mut rng);
-        let result = verify(order, basepoint, proof, message, signature, public_key);
+        let proof = prove(&order, &basepoint, &message, &signature, &public_key, &secret_key, &mut rng);
+        let result = verify(&order, &basepoint, &proof, &message, &signature, &public_key);
 
         assert_eq!(result, false);
     }

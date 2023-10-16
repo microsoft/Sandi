@@ -1,8 +1,9 @@
 use crate::{
     tag::Tag,
-    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError},
+    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError}, nizqdleq,
 };
 use chrono::Utc;
+use curve25519_dalek::{RistrettoPoint, Scalar};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
@@ -14,6 +15,8 @@ pub fn verify(
     message: &str,
     tag: &Tag,
     randomness: &Vec<u8>,
+    proof: &(Scalar, Scalar),
+    r_big: &RistrettoPoint,
     verifying_key: &Vec<u8>,
 ) -> Result<i32, VerificationError> {
     if tag.exp_timestamp < Utc::now().timestamp() {
@@ -46,6 +49,12 @@ pub fn verify(
 
     if commitment.into_bytes().to_vec() != tag.commitment {
         return Err(VerificationError("Invalid commitment".to_string()));
+    }
+
+    // Verify NIZKDLEG
+    let nizqdleq_result = nizqdleq::verify(&tag.basepoint_order, &tag.g_prime, proof, &tag.x_big, &tag.q_big, r_big);
+    if !nizqdleq_result {
+        return Err(VerificationError("Invalid NIZKDLEQ proof".to_string()));
     }
 
     Ok(tag.score)

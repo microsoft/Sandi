@@ -1,6 +1,6 @@
 use crate::sender_ids::{get_sender_by_id, get_sender_id, SenderId, SenderRecord};
 use crate::tag::Tag;
-use crate::utils::{cipher_block_size, decrypt, verify_signature, SignatureVerificationError};
+use crate::utils::{cipher_block_size, decrypt, verify_signature, SignatureVerificationError, get_random_scalar, G, basepoint_order};
 use crate::{sender_ids::get_sender_by_handle, sender_ids::set_sender, utils::encrypt};
 use chrono::{Duration, Utc};
 use curve25519_dalek::RistrettoPoint;
@@ -9,6 +9,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
+use sha2::Sha512;
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -48,13 +49,25 @@ impl AccountabilityServer {
         }
     }
 
-    pub fn set_sender_pk(epk: RistrettoPoint, sender_id: &SenderId) {
-        let mut sender = get_sender_by_id(sender_id).unwrap();
-        sender.epk = epk;
-        set_sender(sender);
+    pub fn set_sender_pk(&self, epk: &RistrettoPoint, sender_handle: &str) {
+        let sender_opt = get_sender_by_handle(sender_handle);
+        match sender_opt {
+            Some(mut sender) => {
+                sender.epk = epk.clone();
+                set_sender(sender);
+            }
+            None => {
+                let mut rng = OsRng;
+                let mut sender = SenderRecord::new(sender_handle, &mut rng);
+                sender.epk = epk.clone();
+                set_sender(sender);
+            }
+        }
     }
 
-    pub fn issue_tag(&self, commitment: &Vec<u8>, sender_handle: &str, tag_duration: u32) -> Tag {
+    pub fn issue_tag<R>(&self, commitment: &Vec<u8>, sender_handle: &str, tag_duration: u32, rng: &mut R) -> Tag
+    where 
+        R: RngCore + CryptoRng, {
         // First, we need to check if the sender_handle is valid
         let mut sender_opt = get_sender_by_handle(sender_handle);
         if sender_opt.is_none() {
@@ -78,6 +91,21 @@ impl AccountabilityServer {
         let mut encrypted_sender_id = sender.id.clone();
         encrypt(&self.enc_secret_key, &mut encrypted_sender_id);
 
+        // s is random scalar
+        let s = get_random_scalar(rng);
+
+        // G'
+        let new_basepoint = s * G();
+        // X
+        let x_big = s * sender.epk;
+        // n, r
+        let n = get_random_scalar(rng);
+        let r = get_random_scalar(rng);
+
+        // Q
+        let hashed_n = RistrettoPoint::hash_from_bytes::<Sha512>(n.as_bytes());
+        let q_big = r * hashed_n;
+
         // Get expiration date for the tag
         // tag_duration is in hours
         let expiration_date =
@@ -89,7 +117,11 @@ impl AccountabilityServer {
         data_to_sign.extend_from_slice(expiration_date.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(sender.score.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(&encrypted_sender_id);
-        data_to_sign.extend_from_slice(sender_handle.as_bytes());
+        data_to_sign.extend_from_slice(basepoint_order().as_bytes()); // q
+        data_to_sign.extend_from_slice(G().compress().as_bytes()); // G
+        data_to_sign.extend_from_slice(q_big.compress().as_bytes()); // Q
+        data_to_sign.extend_from_slice(new_basepoint.compress().as_bytes()); // G'
+        data_to_sign.extend_from_slice(x_big.compress().as_bytes()); // X
 
         let signature = self.signing_key.sign(&data_to_sign);
 
@@ -99,7 +131,11 @@ impl AccountabilityServer {
             exp_timestamp: expiration_date,
             score: sender.score,
             enc_sender_id: encrypted_sender_id.to_vec(),
-            sender_handle: sender_handle.to_string(),
+            basepoint_order: basepoint_order(),
+            basepoint: G(),
+            q_big,
+            g_prime: new_basepoint,
+            x_big,
             signature: signature.to_vec(),
         };
 
@@ -117,48 +153,52 @@ impl AccountabilityServer {
             return Err(ReportError("Tag is expired".to_string()));
         }
 
-        // Verify if tag is included
-        let sender_opt = get_sender_by_handle(&tag.sender_handle);
+        // Verify if tag is already reported, pending
+        if UNPROCESSED_REPORTED_TAGS
+            .lock()
+            .unwrap()
+            .contains_key(&tag.signature)
+        {
+            return Ok(());
+        }
+
+        // Verify tag signature
+        let verifying_key = self.signing_key.verifying_key();
+        let signature_result = verify_signature(tag, &verifying_key);
+        match signature_result {
+            Ok(_) => {}
+            Err(SignatureVerificationError(err_msg)) => {
+                return Err(ReportError(format!(
+                    "Error verifying signature: {}",
+                    err_msg
+                )));
+            }
+        }
+
+        if tag.enc_sender_id.len() != 16 {
+            return Err(ReportError("Invalid sender id".to_string()));
+        }
+        let mut decrypted_sender_id = tag.enc_sender_id.clone();
+        decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
+        let mut sender_id = [0u8; 16];
+        sender_id.copy_from_slice(&decrypted_sender_id[..16]);
+
+        let sender_opt = get_sender_by_id(&sender_id);
         match sender_opt {
             Some(sender) => {
-                if sender.reported_tags.contains(tag)
-                    || UNPROCESSED_REPORTED_TAGS
-                        .lock()
-                        .unwrap()
-                        .contains_key(&tag.signature)
-                {
+                if sender.reported_tags.contains(tag) {
                     // Tag is already reported, no need to do anything
                     return Ok(());
                 }
 
-                let verifying_key = self.signing_key.verifying_key();
-                let signature_result = verify_signature(tag, &verifying_key);
-                match signature_result {
-                    Ok(_) => {
-                        // Verify the encrypted sender ID
-                        let mut decrypted_sender_id = tag.enc_sender_id.clone();
-                        decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
-
-                        if decrypted_sender_id != sender.id {
-                            return Err(ReportError("Invalid encrypted sender ID".to_string()));
-                        }
-
-                        // Tag is valid, so we add it to the unprocessed tags
-                        UNPROCESSED_REPORTED_TAGS
-                            .lock()
-                            .unwrap()
-                            .insert(tag.signature.clone(), tag.clone());
-                    }
-                    Err(SignatureVerificationError(err_msg)) => {
-                        return Err(ReportError(format!(
-                            "Error verifying signature: {}",
-                            err_msg
-                        )));
-                    }
-                }
+                // Tag is valid, so we add it to the unprocessed tags
+                UNPROCESSED_REPORTED_TAGS
+                    .lock()
+                    .unwrap()
+                    .insert(tag.signature.clone(), tag.clone());
             }
             None => {
-                return Err(ReportError("Sender handle is not registered".to_string()));
+                return Err(ReportError("Invalid sender".to_string()));
             }
         }
 
@@ -188,7 +228,10 @@ impl AccountabilityServer {
         let sender_tags: HashMap<SenderId, Vec<Tag>> = unprocessed_tags
             .iter()
             .map(|(_, tag)| {
-                let sender_id = get_sender_id(&tag.sender_handle).unwrap();
+                let mut decrypted_sender_id = tag.enc_sender_id.clone();
+                decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
+                let mut sender_id = [0u8; 16];
+                sender_id.copy_from_slice(&decrypted_sender_id[..16]);
                 (sender_id, tag.clone())
             })
             .into_group_map();
@@ -237,7 +280,7 @@ mod tests {
         }
 
         // Get tags
-        let mut tags: Vec<(Tag, Vec<u8>)> = Vec::new();
+        let mut tags: Vec<Tag> = Vec::new();
         for _idx in 0..1000 {
             // Get a random sender
             let sender_idx = rng.next_u32() as usize % 10;
@@ -246,12 +289,12 @@ mod tests {
                 "receiver",
                 &server,
                 &mut rng,
-            ));
+            ).0);
         }
 
         // Report tags
         for tag in tags {
-            let result = server.report(&tag.0);
+            let result = server.report(&tag);
             assert!(result.is_ok());
         }
 

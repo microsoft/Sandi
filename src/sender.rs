@@ -3,7 +3,7 @@ use hmac::{Hmac, Mac};
 use rand::{CryptoRng, RngCore};
 use sha2::Sha256;
 
-use crate::{accountability_server::AccountabilityServer, tag::Tag, utils::G};
+use crate::{accountability_server::AccountabilityServer, tag::Tag, utils::G, nizqdleq};
 
 pub struct Sender {
     handle: String,
@@ -33,7 +33,7 @@ impl Sender {
         receiver_handle: &str,
         accountability_server: &AccountabilityServer,
         rng: &mut R,
-    ) -> (Tag, Vec<u8>)
+    ) -> (Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)
     where
         R: RngCore + CryptoRng,
     {
@@ -45,8 +45,31 @@ impl Sender {
         let commitment = mac.finalize();
 
         let tag =
-            accountability_server.issue_tag(&commitment.into_bytes().to_vec(), &self.handle, 24);
+            accountability_server.issue_tag(&commitment.into_bytes().to_vec(), &self.handle, 24, rng);
 
-        (tag, randomness.to_vec())
+        // Check if X is valid
+        let new_x = self.esk * tag.x_big;
+        if new_x != tag.x_big {
+            panic!("Invalid tag: X does not match");
+        }
+        let r_big = self.esk * tag.q_big;
+        let z = nizqdleq::prove(&tag.basepoint_order, &tag.g_prime, &tag.x_big, &tag.q_big, &r_big, &self.esk, rng);
+        (tag, randomness.to_vec(), z, r_big)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::accountability_server::AccountabilityServer;
+    use rand::rngs::OsRng;
+
+    #[test]
+    fn test_sender() {
+        let mut rng = OsRng;
+        let accountability_server = AccountabilityServer::new(100, 10, &mut rng);
+        let sender = Sender::new("Alice", &mut rng);
+        accountability_server.set_sender_pk(&sender.epk, &sender.handle);
+        let (tag, randomness, z, r_big) = sender.get_tag("Hello Bob", "Bob", &accountability_server, &mut rng);
     }
 }
