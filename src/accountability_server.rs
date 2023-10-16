@@ -1,18 +1,17 @@
-use crate::sender_ids::{SenderId, SenderRecord, SenderRecords};
+use crate::nizqdleq;
+use crate::sender_records::{SenderRecord, SenderRecords};
 use crate::tag::Tag;
 use crate::utils::{
-    basepoint_order, cipher_block_size, concat_id_and_scalars, encrypt, decrypt, random_scalar,
+    basepoint_order, cipher_block_size, concat_id_and_scalars, decrypt, encrypt, random_scalar,
     verify_signature, SignatureVerificationError, G,
 };
 use chrono::{Duration, Utc};
-use curve25519_dalek::RistrettoPoint;
+use curve25519_dalek::{RistrettoPoint, Scalar};
 use ed25519_dalek::{Signer, SigningKey};
-use itertools::Itertools;
 use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
 use sha2::Sha512;
 use std::cmp;
-use std::collections::HashMap;
 
 pub struct AccountabilityServer {
     enc_secret_key: [u8; 32],
@@ -20,10 +19,10 @@ pub struct AccountabilityServer {
     maximum_score: i32,
     reputation_threashold: i32,
     pub(crate) sender_records: SenderRecords,
-    pub(crate) unprocessed_reported_tags: HashMap<Vec<u8>, Tag>,
 }
 
-pub struct ReportError(String);
+#[derive(Debug)]
+pub struct AccSvrError(pub String);
 
 impl AccountabilityServer {
     pub fn new<R>(
@@ -39,7 +38,6 @@ impl AccountabilityServer {
 
         let signing_key = SigningKey::generate(rng);
         let sender_records = SenderRecords::new();
-        let unprocessed_reported_tags = HashMap::new();
 
         AccountabilityServer {
             enc_secret_key,
@@ -47,7 +45,6 @@ impl AccountabilityServer {
             maximum_score,
             reputation_threashold,
             sender_records,
-            unprocessed_reported_tags,
         }
     }
 
@@ -73,26 +70,23 @@ impl AccountabilityServer {
         sender_handle: &str,
         tag_duration: u32,
         rng: &mut R,
-    ) -> Tag
+    ) -> Result<Tag, AccSvrError>
     where
         R: RngCore + CryptoRng,
     {
         // First, we need to check if the sender_handle is valid
         let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
-        // if sender_opt.is_none() {
-        //     let mut rng = OsRng;
-        //     let sender = SenderRecord::new(sender_handle, &mut rng);
-        //     set_sender(sender.clone());
-        //     sender_opt = Some(sender);
-        // }
-        let sender = sender_opt.expect("Sender should exist");
+        if sender_opt.is_none() {
+            return Err(AccSvrError("Sender not found".to_string()));
+        }
+        let sender = sender_opt.unwrap();
 
         // Check sender id size
         if sender.id.len() % cipher_block_size() != 0 {
-            panic!(
+            return Err(AccSvrError(format!(
                 "Sender id size is not a multiple of {} bytes",
                 cipher_block_size()
-            );
+            )));
         }
 
         // s is random scalar
@@ -149,7 +143,7 @@ impl AccountabilityServer {
             signature: signature.to_vec(),
         };
 
-        tag
+        Ok(tag)
     }
 
     pub fn get_verifying_key(&self) -> Vec<u8> {
@@ -157,15 +151,15 @@ impl AccountabilityServer {
         vk.to_bytes().to_vec()
     }
 
-    pub fn report(&mut self, tag: Tag) -> Result<(), ReportError> {
+    pub fn report(
+        &mut self,
+        tag: Tag,
+        proof: (Scalar, Scalar),
+        r_big: RistrettoPoint,
+    ) -> Result<(), AccSvrError> {
         // Check if tag is expired
         if tag.exp_timestamp < Utc::now().timestamp() {
-            return Err(ReportError("Tag is expired".to_string()));
-        }
-
-        // Verify if tag is already reported, pending
-        if self.unprocessed_reported_tags.contains_key(&tag.signature)        {
-            return Ok(());
+            return Err(AccSvrError("Tag is expired".to_string()));
         }
 
         // Verify tag signature
@@ -174,35 +168,61 @@ impl AccountabilityServer {
         match signature_result {
             Ok(_) => {}
             Err(SignatureVerificationError(err_msg)) => {
-                return Err(ReportError(format!(
+                return Err(AccSvrError(format!(
                     "Error verifying signature: {}",
                     err_msg
                 )));
             }
         }
 
-        if tag.enc_sender_id.len() != 16 {
-            return Err(ReportError("Invalid sender id".to_string()));
+        // Verify NIZQDLEQ
+        let nizqdleq_result = nizqdleq::verify(
+            &tag.basepoint_order,
+            &tag.g_prime,
+            &proof,
+            &tag.x_big,
+            &tag.q_big,
+            &r_big,
+        );
+        if !nizqdleq_result {
+            return Err(AccSvrError("Invalid NIZQDLEQ proof".to_string()));
         }
+
+        // Sender Id + n + r
+        let scalar_length = Scalar::ONE.as_bytes().len();
+        if tag.enc_sender_id.len() != 16 + 2 * scalar_length {
+            return Err(AccSvrError("Invalid sender id".to_string()));
+        }
+
         let mut decrypted_sender_id = tag.enc_sender_id.clone();
         decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
         let mut sender_id = [0u8; 16];
         sender_id.copy_from_slice(&decrypted_sender_id[..16]);
+        let mut n_buff = [0u8; 32];
+        n_buff.copy_from_slice(&decrypted_sender_id[16..48]);
+        let n = Scalar::from_canonical_bytes(n_buff).unwrap();
+        let mut r_buff = [0u8; 32];
+        r_buff.copy_from_slice(&decrypted_sender_id[48..]);
+        let r = Scalar::from_canonical_bytes(r_buff).unwrap();
+        let inv_r = r.invert();
+
+        let sigma = inv_r * r_big;
 
         let sender_opt = self.sender_records.get_sender_by_id(&sender_id);
         match sender_opt {
-            Some(sender) => {
-                if sender.reported_tags.contains(&tag) {
+            Some(mut sender) => {
+                if sender.reported_tags.contains_key(&tag.signature) {
                     // Tag is already reported, no need to do anything
                     return Ok(());
                 }
 
                 // Tag is valid, so we add it to the unprocessed tags
-                self.unprocessed_reported_tags
-                    .insert(tag.signature.clone(), tag);
+                sender.reported_tags.insert(tag.signature.clone(), tag);
+                sender.tokens.push((n, sigma));
+                self.sender_records.set_sender(sender);
             }
             None => {
-                return Err(ReportError("Invalid sender".to_string()));
+                return Err(AccSvrError("Sender not found".to_string()));
             }
         }
 
@@ -226,38 +246,27 @@ impl AccountabilityServer {
     }
 
     pub fn update_scores(&mut self) {
-        // Group unprocessed tags by sender
-        let sender_tags: HashMap<SenderId, Vec<Tag>> = self.unprocessed_reported_tags
-            .iter()
-            .map(|(_, tag)| {
-                let mut decrypted_sender_id = tag.enc_sender_id.clone();
-                decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
-                let mut sender_id = [0u8; 16];
-                sender_id.copy_from_slice(&decrypted_sender_id[..16]);
-                (sender_id, tag.clone())
-            })
-            .into_group_map();
+        let mut updated_senders = Vec::new();
 
-        // Update sender scores
-        for (sender_id, tags) in sender_tags.iter() {
-            let mut sender = self.sender_records.get_sender_by_id(sender_id).unwrap();
-
-            // Update sender score
-            sender.score = AccountabilityServer::update_score(
+        self.sender_records.for_each(|sender| {
+            let new_score = AccountabilityServer::update_score(
                 sender.score,
-                tags.len() as i32,
+                sender.reported_tags.len() as i32,
                 self.maximum_score,
                 self.reputation_threashold,
             );
 
-            // Add tags to reported tags
-            sender.reported_tags.extend(tags.iter().cloned());
+            if new_score != sender.score {
+                let mut new_sender = sender.clone();
+                new_sender.score = new_score;
+                new_sender.reported_tags.clear();
+                updated_senders.push(new_sender);
+            }
+        });
 
-            // Update sender
+        for sender in updated_senders {
             self.sender_records.set_sender(sender);
         }
-
-        self.unprocessed_reported_tags.clear();
     }
 }
 
@@ -278,33 +287,31 @@ mod tests {
         let mut senders: Vec<Sender> = Vec::new();
         for i in 0..10 {
             let sender_handle = format!("sender{}", i);
-            senders.push(Sender::new(&sender_handle, &mut rng));
+            let sender = Sender::new(&sender_handle, &mut rng);
+            server.set_sender_pk(&sender.epk, &sender_handle);
+            senders.push(sender);
         }
 
         // Get tags
-        let mut tags: Vec<Tag> = Vec::new();
+        let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
         for _idx in 0..1000 {
             // Get a random sender
             let sender_idx = rng.next_u32() as usize % 10;
             tags.push(
                 senders[sender_idx]
                     .get_tag("This is the message", "receiver", &server, &mut rng)
-                    .0,
+                    .unwrap(),
             );
         }
 
         // Report tags
         for tag in tags {
-            let result = server.report(tag);
-            assert!(result.is_ok());
+            let result = server.report(tag.0, tag.2, tag.3);
+            assert!(result.is_ok(), "{:?}", result.unwrap_err());
         }
-
-        assert!(!server.unprocessed_reported_tags.is_empty());
 
         // Update scores
         server.update_scores();
-
-        assert!(server.unprocessed_reported_tags.is_empty());
     }
 
     #[test]

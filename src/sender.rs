@@ -3,13 +3,21 @@ use hmac::{Hmac, Mac};
 use rand::{CryptoRng, RngCore};
 use sha2::Sha256;
 
-use crate::{accountability_server::AccountabilityServer, nizqdleq, tag::Tag, utils::G};
+use crate::{
+    accountability_server::{AccSvrError, AccountabilityServer},
+    nizqdleq,
+    tag::Tag,
+    utils::G,
+};
 
 pub struct Sender {
     pub handle: String,
     pub epk: RistrettoPoint,
     esk: Scalar,
 }
+
+#[derive(Debug)]
+pub struct SenderError(String);
 
 impl Sender {
     pub fn new<R>(handle: &str, rng: &mut R) -> Sender
@@ -34,7 +42,7 @@ impl Sender {
         receiver_handle: &str,
         accountability_server: &AccountabilityServer,
         rng: &mut R,
-    ) -> (Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)
+    ) -> Result<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint), SenderError>
     where
         R: RngCore + CryptoRng,
     {
@@ -45,29 +53,35 @@ impl Sender {
         mac.update(msg.as_bytes());
         let commitment = mac.finalize();
 
-        let tag = accountability_server.issue_tag(
+        let tag_res = accountability_server.issue_tag(
             &commitment.into_bytes().to_vec(),
             &self.handle,
             24,
             rng,
         );
 
-        // Check if X is valid
-        let new_x = self.esk * tag.g_prime;
-        if new_x != tag.x_big {
-            panic!("Invalid tag: X does not match");
+        match tag_res {
+            Ok(tag) => {
+                // Check if X is valid
+                let new_x = self.esk * tag.g_prime;
+                if new_x != tag.x_big {
+                    return Err(SenderError("Invalid tag: X does not match".to_string()));
+                }
+                let r_big = self.esk * tag.q_big;
+                let z = nizqdleq::prove(
+                    &tag.basepoint_order,
+                    &tag.g_prime,
+                    &tag.x_big,
+                    &tag.q_big,
+                    &r_big,
+                    &self.esk,
+                    rng,
+                );
+
+                Ok((tag, randomness.to_vec(), z, r_big))
+            }
+            Err(AccSvrError(err_msg)) => Err(SenderError(err_msg)),
         }
-        let r_big = self.esk * tag.q_big;
-        let z = nizqdleq::prove(
-            &tag.basepoint_order,
-            &tag.g_prime,
-            &tag.x_big,
-            &tag.q_big,
-            &r_big,
-            &self.esk,
-            rng,
-        );
-        (tag, randomness.to_vec(), z, r_big)
     }
 }
 
@@ -83,7 +97,6 @@ mod tests {
         let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
         let sender = Sender::new("Alice", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
-        let (tag, randomness, z, r_big) =
-            sender.get_tag("Hello Bob", "Bob", &accsvr, &mut rng);
+        let _ = sender.get_tag("Hello Bob", "Bob", &accsvr, &mut rng);
     }
 }

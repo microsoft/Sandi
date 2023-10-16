@@ -84,7 +84,9 @@ mod tests {
         let sender = Sender::new("sender", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 
-        let tag = sender.get_tag(message, receiver_handle, &accsvr, &mut rng);
+        let tag = sender
+            .get_tag(message, receiver_handle, &accsvr, &mut rng)
+            .unwrap();
 
         // Tag should be valid
         let verif_result = verify(

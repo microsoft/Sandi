@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
 use crate::{tag::Tag, utils::G};
-use curve25519_dalek::RistrettoPoint;
+use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand::{CryptoRng, RngCore};
 
 // Alias for a sender ID
 pub type SenderId = [u8; 16];
+// Alias for a token
+pub type Token = (Scalar, RistrettoPoint);
 
 #[derive(Clone)]
 pub(crate) struct SenderRecord {
@@ -13,7 +15,8 @@ pub(crate) struct SenderRecord {
     pub handles: Vec<String>,
     pub epk: RistrettoPoint,
     pub score: i32,
-    pub reported_tags: Vec<Tag>,
+    pub reported_tags: HashMap<Vec<u8>, Tag>,
+    pub tokens: Vec<Token>,
 }
 
 pub(crate) struct SenderRecords {
@@ -35,7 +38,8 @@ impl SenderRecord {
             handles: vec![handle.to_string()],
             epk: epk,
             score: 100,
-            reported_tags: vec![],
+            reported_tags: HashMap::new(),
+            tokens: Vec::new(),
         }
     }
 }
@@ -64,19 +68,20 @@ impl SenderRecords {
         return Some(sender.clone());
     }
 
-    pub(crate) fn get_sender_id(&self, handle: &str) -> Option<SenderId> {
-        // let ids = SENDER_IDS.lock().unwrap();
-        let sender_id = self.ids.get(handle)?;
+    // pub(crate) fn get_sender_id(&self, handle: &str) -> Option<SenderId> {
+    //     // let ids = SENDER_IDS.lock().unwrap();
+    //     let sender_id = self.ids.get(handle)?;
 
-        return Some(sender_id.clone());
-    }
+    //     return Some(sender_id.clone());
+    // }
 
     pub(crate) fn set_sender(&mut self, sender_record: SenderRecord) {
         // let mut ids = SENDER_IDS.lock().unwrap();
         // let mut records = SENDER_RECORDS.lock().unwrap();
 
         for handle in &sender_record.handles {
-            self.ids.entry(handle.clone())
+            self.ids
+                .entry(handle.clone())
                 .and_modify(|e| *e = sender_record.id.clone())
                 .or_insert(sender_record.id.clone());
         }
@@ -87,8 +92,19 @@ impl SenderRecords {
                 e.handles = sender_record.handles.clone();
                 e.score = sender_record.score;
                 e.reported_tags = sender_record.reported_tags.clone();
+                e.tokens = sender_record.tokens.clone();
             })
             .or_insert(sender_record);
+    }
+
+    // Iterate over all senders, executing the given function
+    pub(crate) fn for_each<F>(&self, mut f: F)
+    where
+        F: FnMut(&SenderRecord),
+    {
+        for (_, sender) in &self.records {
+            f(sender);
+        }
     }
 }
 // pub(crate) fn clear_sender_records() {

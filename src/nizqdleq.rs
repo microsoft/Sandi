@@ -2,16 +2,13 @@ pub(crate) use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 
-use crate::utils::G;
-
-#[allow(non_snake_case)]
 pub fn prove<R>(
-    order: &Scalar,              // q
-    basepoint: &RistrettoPoint,  // G'
-    message: &RistrettoPoint,    // X
-    signature: &RistrettoPoint,  // Q
-    public_key: &RistrettoPoint, // R
-    secret_key: &Scalar,         // esk
+    q: &Scalar,               // q
+    g_prime: &RistrettoPoint, // G'
+    x_big: &RistrettoPoint,   // X
+    q_big: &RistrettoPoint,   // Q
+    r_big: &RistrettoPoint,   // R
+    esk: &Scalar,             // esk
     rng: &mut R,
 ) -> (Scalar, Scalar)
 where
@@ -19,62 +16,63 @@ where
 {
     let mut bytes = [0u8; 32];
     rng.fill_bytes(&mut bytes);
-    let randomness = Scalar::from_bytes_mod_order(bytes);
+    let k = Scalar::from_bytes_mod_order(bytes); // k
 
-    let A = basepoint * randomness;
-    let B = message * randomness;
+    // A = G' * k
+    let a_big = k * g_prime;
+    // B = Q * k
+    let b_big = k * q_big;
 
     let mut hasher = Sha256::new();
-    hasher.update(order.as_bytes()); // q
-    hasher.update(basepoint.compress().as_bytes()); // G'
-    hasher.update(message.compress().as_bytes()); // X
-    hasher.update(signature.compress().as_bytes()); // Q
-    hasher.update(public_key.compress().as_bytes()); // R
-    hasher.update(A.compress().as_bytes()); // A
-    hasher.update(B.compress().as_bytes()); // B
+    hasher.update(q.as_bytes()); // q
+    hasher.update(g_prime.compress().as_bytes()); // G'
+    hasher.update(x_big.compress().as_bytes()); // X
+    hasher.update(q_big.compress().as_bytes()); // Q
+    hasher.update(r_big.compress().as_bytes()); // R
+    hasher.update(a_big.compress().as_bytes()); // A
+    hasher.update(b_big.compress().as_bytes()); // B
     let hashed_points = hasher.finalize();
-    let challenge = Scalar::from_bytes_mod_order(hashed_points.try_into().unwrap());
-    let chall_sk = challenge * secret_key;
-    let response = randomness - chall_sk;
+    let c = Scalar::from_bytes_mod_order(hashed_points.try_into().unwrap());
+    let c_sk = c * esk;
+    let s = k - c_sk;
 
     // c, s
-    return (challenge, response);
+    return (c, s);
 }
 
-#[allow(non_snake_case)]
 pub fn verify(
-    order: &Scalar,              // q
-    basepoint: &RistrettoPoint,  // G'
-    proof: &(Scalar, Scalar),    // z
-    message: &RistrettoPoint,    // X
-    signature: &RistrettoPoint,  // Q
-    public_key: &RistrettoPoint, // R
+    q: &Scalar,               // q
+    g_prime: &RistrettoPoint, // G'
+    z: &(Scalar, Scalar),     // z
+    x_big: &RistrettoPoint,   // X
+    q_big: &RistrettoPoint,   // Q
+    r_big: &RistrettoPoint,   // R
 ) -> bool {
-    let (challenge, response) = proof;
-    let A = G() * response + public_key * challenge;
-    let B = message * response + signature * challenge;
+    let (c, s) = z; // c, s
+                    // A' = G' * s + X * c
+    let a_prime = s * g_prime + c * x_big;
+    // B' = Q * s + R * c
+    let b_prime = s * q_big + c * r_big;
 
     let mut hasher = Sha256::new();
-    hasher.update(order.as_bytes()); // q
-    hasher.update(basepoint.compress().as_bytes()); // G'
-    hasher.update(message.compress().as_bytes()); // X
-    hasher.update(signature.compress().as_bytes()); // Q
-    hasher.update(public_key.compress().as_bytes()); // R
-    hasher.update(A.compress().as_bytes()); // A
-    hasher.update(B.compress().as_bytes()); // B
+    hasher.update(q.as_bytes()); // q
+    hasher.update(g_prime.compress().as_bytes()); // G'
+    hasher.update(x_big.compress().as_bytes()); // X
+    hasher.update(q_big.compress().as_bytes()); // Q
+    hasher.update(r_big.compress().as_bytes()); // R
+    hasher.update(a_prime.compress().as_bytes()); // A'
+    hasher.update(b_prime.compress().as_bytes()); // B'
     let hashed_points = hasher.finalize();
-    let challenge2 = Scalar::from_bytes_mod_order(hashed_points.try_into().unwrap());
+    let new_c = Scalar::from_bytes_mod_order(hashed_points.try_into().unwrap());
 
-    return *challenge == challenge2;
+    return *c == new_c;
 }
 
 #[cfg(test)]
 mod tests {
-    use sha2::Sha512;
-
-    use crate::utils::{basepoint_order, random_scalar};
-
     use super::*;
+    use crate::utils::{basepoint_order, random_scalar, G};
+    use sha2::Sha512;
 
     #[test]
     #[allow(non_snake_case)]

@@ -13,7 +13,7 @@ use curve25519_dalek::{
 use ed25519_dalek::{Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use rand::{CryptoRng, RngCore};
 
-use crate::{sender_ids::SenderId, tag::Tag};
+use crate::{sender_records::SenderId, tag::Tag};
 
 pub fn random_scalar<R>(rng: &mut R) -> Scalar
 where
