@@ -15,6 +15,7 @@ pub(crate) struct SenderRecord {
     pub handles: Vec<String>,
     pub epk: RistrettoPoint,
     pub score: i32,
+    pub report_count: i32,
     pub reported_tags: HashMap<Vec<u8>, Tag>,
     pub tokens: Vec<Token>,
 }
@@ -38,6 +39,7 @@ impl SenderRecord {
             handles: vec![handle.to_string()],
             epk: epk,
             score: 100,
+            report_count: 0,
             reported_tags: HashMap::new(),
             tokens: Vec::new(),
         }
@@ -53,8 +55,6 @@ impl SenderRecords {
     }
 
     pub(crate) fn get_sender_by_handle(&self, handle: &str) -> Option<SenderRecord> {
-        // let ids =  SENDER_IDS.lock().unwrap();
-        // let records = SENDER_RECORDS.lock().unwrap();
         let sender_id = self.ids.get(handle)?;
         let sender = self.records.get(sender_id)?;
 
@@ -62,23 +62,12 @@ impl SenderRecords {
     }
 
     pub(crate) fn get_sender_by_id(&self, id: &SenderId) -> Option<SenderRecord> {
-        // let records = SENDER_RECORDS.lock().unwrap();
         let sender = self.records.get(id)?;
 
         return Some(sender.clone());
     }
 
-    // pub(crate) fn get_sender_id(&self, handle: &str) -> Option<SenderId> {
-    //     // let ids = SENDER_IDS.lock().unwrap();
-    //     let sender_id = self.ids.get(handle)?;
-
-    //     return Some(sender_id.clone());
-    // }
-
     pub(crate) fn set_sender(&mut self, sender_record: SenderRecord) {
-        // let mut ids = SENDER_IDS.lock().unwrap();
-        // let mut records = SENDER_RECORDS.lock().unwrap();
-
         for handle in &sender_record.handles {
             self.ids
                 .entry(handle.clone())
@@ -93,24 +82,21 @@ impl SenderRecords {
                 e.score = sender_record.score;
                 e.reported_tags = sender_record.reported_tags.clone();
                 e.tokens = sender_record.tokens.clone();
+                e.report_count = sender_record.report_count;
             })
             .or_insert(sender_record);
     }
 
     // Iterate over all senders, executing the given function
-    pub(crate) fn for_each<F>(&self, mut f: F)
+    pub(crate) fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(&SenderRecord),
+        F: FnMut(&mut SenderRecord),
     {
-        for (_, sender) in &self.records {
+        for (_, sender) in &mut self.records {
             f(sender);
         }
     }
 }
-// pub(crate) fn clear_sender_records() {
-//     SENDER_RECORDS.lock().unwrap().clear();
-//     SENDER_IDS.lock().unwrap().clear();
-// }
 
 #[cfg(test)]
 mod tests {

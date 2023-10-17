@@ -15,12 +15,10 @@ pub fn prove() {}
 mod tests {
     use crate::{accountability_server::AccountabilityServer, sender::Sender};
     use rand::rngs::OsRng;
-    use serial_test::serial;
 
     use super::*;
 
     #[test]
-    #[serial]
     fn issue_tag_test() {
         let mut rng = OsRng;
         let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);

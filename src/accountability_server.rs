@@ -219,6 +219,8 @@ impl AccountabilityServer {
                 // Tag is valid, so we add it to the unprocessed tags
                 sender.reported_tags.insert(tag.signature.clone(), tag);
                 sender.tokens.push((n, sigma));
+                sender.report_count += 1;
+
                 self.sender_records.set_sender(sender);
             }
             None => {
@@ -246,39 +248,36 @@ impl AccountabilityServer {
     }
 
     pub fn update_scores(&mut self) {
-        let mut updated_senders = Vec::new();
-
         self.sender_records.for_each(|sender| {
-            let new_score = AccountabilityServer::update_score(
+            sender.score = AccountabilityServer::update_score(
                 sender.score,
-                sender.reported_tags.len() as i32,
+                sender.report_count,
                 self.maximum_score,
                 self.reputation_threashold,
             );
 
-            if new_score != sender.score {
-                let mut new_sender = sender.clone();
-                new_sender.score = new_score;
-                new_sender.reported_tags.clear();
-                updated_senders.push(new_sender);
+            sender.report_count = 0;
+
+            // Get rid of expired tags
+            let mut expired_tags: Vec<Vec<u8>> = Vec::new();
+            for (signature, tag) in &sender.reported_tags {
+                if tag.exp_timestamp < Utc::now().timestamp() {
+                    expired_tags.push(signature.clone());
+                }
+            }
+            for signature in expired_tags {
+                sender.reported_tags.remove(&signature);
             }
         });
-
-        for sender in updated_senders {
-            self.sender_records.set_sender(sender);
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::sender::Sender;
-    use serial_test::serial;
-
     use super::*;
 
     #[test]
-    #[serial]
     fn update_scores_test() {
         let mut rng = OsRng;
         let mut server = AccountabilityServer::new(1000, 10, &mut rng);
@@ -294,14 +293,21 @@ mod tests {
 
         // Get tags
         let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
-        for _idx in 0..1000 {
+        for idx in 0..1000 {
             // Get a random sender
-            let sender_idx = rng.next_u32() as usize % 10;
+            let sender_idx = idx as usize % 10;
             tags.push(
                 senders[sender_idx]
                     .get_tag("This is the message", "receiver", &server, &mut rng)
                     .unwrap(),
             );
+        }
+
+        // Before the report the count should be 0
+        for sender in &server.sender_records.records {
+            assert_eq!(sender.1.report_count, 0);
+            assert_eq!(sender.1.reported_tags.len(), 0);
+            assert_eq!(sender.1.tokens.len(), 0);
         }
 
         // Report tags
@@ -310,8 +316,22 @@ mod tests {
             assert!(result.is_ok(), "{:?}", result.unwrap_err());
         }
 
+        // After the report the count should be 100
+        for sender in &server.sender_records.records {
+            assert_eq!(sender.1.report_count, 100);
+            assert_eq!(sender.1.reported_tags.len(), 100);
+            assert_eq!(sender.1.tokens.len(), 100);
+        }
+
         // Update scores
         server.update_scores();
+
+        // After updateing scores the count should be 0 again
+        for sender in &server.sender_records.records {
+            assert_eq!(sender.1.report_count, 0);
+            assert_eq!(sender.1.reported_tags.len(), 100);
+            assert_eq!(sender.1.tokens.len(), 100);
+        }
     }
 
     #[test]
