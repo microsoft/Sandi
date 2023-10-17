@@ -12,6 +12,7 @@ use curve25519_dalek::{
 };
 use ed25519_dalek::{Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use rand::{CryptoRng, RngCore};
+use rand_chacha::rand_core::OsRng;
 
 use crate::{sender_records::SenderId, tag::Tag};
 
@@ -31,6 +32,14 @@ pub fn G() -> RistrettoPoint {
 
 pub fn basepoint_order() -> Scalar {
     BASEPOINT_ORDER
+}
+
+pub fn random_point<R>(rng: &mut R) -> RistrettoPoint
+where
+    R: RngCore + CryptoRng, {
+    let mut bytes = [0u8; 32];
+    rng.fill_bytes(&mut bytes);
+    RistrettoPoint::hash_from_bytes::<sha2::Sha512>(&bytes)
 }
 
 pub fn encrypt(key: &[u8], message: &mut [u8]) {

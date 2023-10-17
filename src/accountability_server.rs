@@ -274,8 +274,8 @@ impl AccountabilityServer {
 
 #[cfg(test)]
 mod tests {
-    use crate::sender::Sender;
     use super::*;
+    use crate::sender::Sender;
 
     #[test]
     fn update_scores_test() {
