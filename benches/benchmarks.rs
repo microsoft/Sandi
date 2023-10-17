@@ -7,29 +7,38 @@ use rand::{rngs::OsRng, RngCore};
 
 fn get_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(100, 10, &mut rng);
     let sender = Sender::new("sender1", &mut rng);
+    server.set_sender_pk(&sender.epk, &sender.handle);
 
     let message = "This is a test message";
     let receiver_handle = "receiver_handle";
 
     c.bench_function("get_tag", |b| {
-        b.iter(|| sender.get_tag(&message, &receiver_handle, &server, &mut rng))
+        b.iter(|| {
+            let result = sender.get_tag(&message, &receiver_handle, &server, &mut rng);
+            assert!(result.is_ok());
+        })
     });
 }
 
 fn issue_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(100, 10, &mut rng);
 
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
 
     let sender_handle = "sender_handle";
     let tag_duration = 24;
+    let sender = Sender::new(sender_handle, &mut rng);
+    server.set_sender_pk(&sender.epk, &sender.handle);
 
     c.bench_function("issue_tag", |b| {
-        b.iter(|| server.issue_tag(&commitment.to_vec(), sender_handle, tag_duration, &mut rng))
+        b.iter(|| {
+            let result = server.issue_tag(&commitment.to_vec(), sender_handle, tag_duration, &mut rng);
+            assert!(result.is_ok());
+        })
     });
 }
 
