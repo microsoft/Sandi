@@ -162,10 +162,10 @@ fn verify_nizqdleq_proof_bench(c: &mut Criterion) {
             let result = acctblty::nizqdleq::verify(
                 &basepoint_order,
                 &x_big,
-                &proof,
                 &y_big,
                 &q_big,
                 &r_big,
+                &proof,
             );
             assert!(result);
         });

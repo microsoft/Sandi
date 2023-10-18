@@ -95,7 +95,7 @@ where
     }
 
     let bporder = basepoint_order();
-    let result = nizqdleq::verify(&bporder, x_big, proof, y_big, &m_big, &z_big);
+    let result = nizqdleq::verify(&bporder, x_big, y_big, &m_big, &z_big, proof);
     result
 }
 

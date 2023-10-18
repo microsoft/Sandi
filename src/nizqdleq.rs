@@ -43,10 +43,10 @@ where
 pub fn verify(
     q: &Scalar,               // q
     g_prime: &RistrettoPoint, // G'
-    z: &(Scalar, Scalar),     // z
     x_big: &RistrettoPoint,   // X
     q_big: &RistrettoPoint,   // Q
     r_big: &RistrettoPoint,   // R
+    z: &(Scalar, Scalar),     // z
 ) -> bool {
     let (c, s) = z; // c, s
                     // A' = G' * s + X * c
@@ -86,7 +86,7 @@ mod tests {
 
         let basepoint_order = basepoint_order();
         let z = prove(&basepoint_order, &x_big, &y_big, &q_big, &r_big, &esk, &mut rng);
-        let result = verify(&basepoint_order, &x_big, &z, &y_big, &q_big, &r_big);
+        let result = verify(&basepoint_order, &x_big, &y_big, &q_big, &r_big, &z);
         assert!(result);
     }
 }

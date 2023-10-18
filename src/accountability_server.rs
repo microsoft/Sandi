@@ -179,10 +179,10 @@ impl AccountabilityServer {
         let nizqdleq_result = nizqdleq::verify(
             &tag.basepoint_order,
             &tag.g_prime,
-            &proof,
             &tag.x_big,
             &tag.q_big,
             &r_big,
+            &proof,
         );
         if !nizqdleq_result {
             return Err(AccSvrError("Invalid NIZQDLEQ proof".to_string()));
