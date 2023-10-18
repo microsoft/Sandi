@@ -4,7 +4,7 @@ pub mod sender;
 pub mod sender_records;
 pub mod tag;
 pub mod tag_verifier;
-mod utils;
+pub mod utils;
 pub mod batch_ndleq;
 
 pub fn test() {}

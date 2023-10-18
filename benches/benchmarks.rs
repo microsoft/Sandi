@@ -1,5 +1,5 @@
 use acctblty::{
-    accountability_server::AccountabilityServer, sender::Sender, tag::Tag, tag_verifier,
+    accountability_server::AccountabilityServer, sender::Sender, tag::Tag, tag_verifier, utils::{basepoint_order, random_point, random_scalar},
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use curve25519_dalek::{RistrettoPoint, Scalar};
@@ -113,6 +113,65 @@ fn report_tag_bench(c: &mut Criterion) {
     });
 }
 
+fn generate_nizqdleq_proof_bench(c: &mut Criterion) {
+    let mut rng = OsRng;
+    let esk = random_scalar(&mut rng);
+    let basepoint_order = basepoint_order();
+    let x_big = random_point(&mut rng);
+    let y_big = esk * x_big;
+    let q_big = random_point(&mut rng);
+    let r_big = esk * q_big;
+
+    c.bench_function("generate_nizqdleq_proof", |b| {
+        b.iter(|| {
+            let proof = acctblty::nizqdleq::prove(
+                &basepoint_order,
+                &x_big,
+                &y_big,
+                &q_big,
+                &r_big,
+                &esk,
+                &mut rng,
+            );
+            assert!(proof.0 != Scalar::ONE);
+            assert!(proof.1 != Scalar::ONE);
+        });
+    });
+}
+
+fn verify_nizqdleq_proof_bench(c: &mut Criterion) {
+    let mut rng = OsRng;
+    let esk = random_scalar(&mut rng);
+    let basepoint_order = basepoint_order();
+    let x_big = random_point(&mut rng);
+    let y_big = esk * x_big;
+    let q_big = random_point(&mut rng);
+    let r_big = esk * q_big;
+    let proof = acctblty::nizqdleq::prove(
+        &basepoint_order,
+        &x_big,
+        &y_big,
+        &q_big,
+        &r_big,
+        &esk,
+        &mut rng,
+    );
+
+    c.bench_function("verify_nizqdleq_proof", |b| {
+        b.iter(|| {
+            let result = acctblty::nizqdleq::verify(
+                &basepoint_order,
+                &x_big,
+                &proof,
+                &y_big,
+                &q_big,
+                &r_big,
+            );
+            assert!(result);
+        });
+    });
+}
+
 fn end_to_end_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut server = AccountabilityServer::new(100, 10, &mut rng);
@@ -148,6 +207,8 @@ criterion_group!(
     get_tag_bench,
     issue_tag_bench,
     verify_tag_bench,
+    generate_nizqdleq_proof_bench,
+    verify_nizqdleq_proof_bench,
     report_tag_bench,
     end_to_end_bench
 );
