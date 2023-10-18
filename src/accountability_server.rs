@@ -430,7 +430,12 @@ mod tests {
         let sender = Sender::new("sender1", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 
-        let tag_res = accsvr.issue_tag(&commitment.into_bytes().to_vec(), &sender.handle, 24, &mut rng);
+        let tag_res = accsvr.issue_tag(
+            &commitment.into_bytes().to_vec(),
+            &sender.handle,
+            24,
+            &mut rng,
+        );
         assert!(tag_res.is_ok());
 
         let tag = tag_res.unwrap();

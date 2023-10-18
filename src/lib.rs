@@ -1,11 +1,11 @@
 pub mod accountability_server;
+pub mod batch_ndleq;
 pub mod nizqdleq;
 pub mod sender;
 pub mod sender_records;
 pub mod tag;
 pub mod tag_verifier;
 pub mod utils;
-pub mod batch_ndleq;
 
 pub fn test() {}
 

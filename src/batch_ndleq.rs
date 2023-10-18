@@ -1,19 +1,28 @@
-use curve25519_dalek::{RistrettoPoint, Scalar};
-use rand_chacha::ChaCha20Rng;
-use rand::{RngCore, SeedableRng};
-use sha2::{Digest, Sha256};
 use crate::{nizqdleq, utils::basepoint_order};
+use curve25519_dalek::{RistrettoPoint, Scalar};
+use rand::{RngCore, SeedableRng};
+use rand_chacha::ChaCha20Rng;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 pub struct BatchNdleqError(pub String);
 
-pub fn prove<T>(x_big: &RistrettoPoint, y_big: &RistrettoPoint, p_arr: &T, q_arr: &T, esk: &Scalar) -> Result<(Scalar, Scalar), BatchNdleqError>
+pub fn prove<T>(
+    x_big: &RistrettoPoint,
+    y_big: &RistrettoPoint,
+    p_arr: &T,
+    q_arr: &T,
+    esk: &Scalar,
+) -> Result<(Scalar, Scalar), BatchNdleqError>
 where
-    T: AsRef<[RistrettoPoint]>, {
+    T: AsRef<[RistrettoPoint]>,
+{
     let len_p = p_arr.as_ref().len();
     let len_q = q_arr.as_ref().len();
     if len_p != len_q {
-        return Err(BatchNdleqError("Length of P and Q arrays must be equal".to_string()));
+        return Err(BatchNdleqError(
+            "Length of P and Q arrays must be equal".to_string(),
+        ));
     }
 
     let mut hasher = Sha256::new();
@@ -31,11 +40,13 @@ where
     let seed: [u8; 32] = hash_result.try_into().unwrap();
 
     let mut rng = ChaCha20Rng::from_seed(seed);
-    let coeffs = (0..len_p).map(|_| {
-        let mut bytes = [0u8; 32];
-        rng.fill_bytes(&mut bytes);
-        Scalar::from_bytes_mod_order(bytes)
-    }).collect::<Vec<_>>();
+    let coeffs = (0..len_p)
+        .map(|_| {
+            let mut bytes = [0u8; 32];
+            rng.fill_bytes(&mut bytes);
+            Scalar::from_bytes_mod_order(bytes)
+        })
+        .collect::<Vec<_>>();
     let mut m_big = coeffs[0] * p_arr.as_ref()[0];
     let mut z_big = coeffs[0] * q_arr.as_ref()[0];
     for i in 1..len_p {
@@ -49,14 +60,20 @@ where
 
     let bporder = basepoint_order();
     let proof = nizqdleq::prove(&bporder, x_big, y_big, &m_big, &z_big, esk, &mut rng);
-    
+
     Ok(proof)
 }
 
-pub fn verify<T>(x_big: &RistrettoPoint, y_big: &RistrettoPoint, p_arr: &T, q_arr: &T, proof: &(Scalar, Scalar)) -> bool
-where 
-    T: AsRef<[RistrettoPoint]>, {
-
+pub fn verify<T>(
+    x_big: &RistrettoPoint,
+    y_big: &RistrettoPoint,
+    p_arr: &T,
+    q_arr: &T,
+    proof: &(Scalar, Scalar),
+) -> bool
+where
+    T: AsRef<[RistrettoPoint]>,
+{
     let len_p = p_arr.as_ref().len();
     let len_q = q_arr.as_ref().len();
     if len_p != len_q {
@@ -78,11 +95,13 @@ where
     let seed: [u8; 32] = hash_result.try_into().unwrap();
 
     let mut rng = ChaCha20Rng::from_seed(seed);
-    let coeffs = (0..len_p).map(|_| {
-        let mut bytes = [0u8; 32];
-        rng.fill_bytes(&mut bytes);
-        Scalar::from_bytes_mod_order(bytes)
-    }).collect::<Vec<_>>();
+    let coeffs = (0..len_p)
+        .map(|_| {
+            let mut bytes = [0u8; 32];
+            rng.fill_bytes(&mut bytes);
+            Scalar::from_bytes_mod_order(bytes)
+        })
+        .collect::<Vec<_>>();
     let mut m_big = coeffs[0] * p_arr.as_ref()[0];
     let mut z_big = coeffs[0] * q_arr.as_ref()[0];
     for i in 1..len_p {

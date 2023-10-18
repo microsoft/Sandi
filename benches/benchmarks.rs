@@ -1,5 +1,9 @@
 use acctblty::{
-    accountability_server::AccountabilityServer, sender::Sender, tag::Tag, tag_verifier, utils::{basepoint_order, random_point, random_scalar},
+    accountability_server::AccountabilityServer,
+    sender::Sender,
+    tag::Tag,
+    tag_verifier,
+    utils::{basepoint_order, random_point, random_scalar},
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use curve25519_dalek::{RistrettoPoint, Scalar};

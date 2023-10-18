@@ -70,7 +70,7 @@ pub fn verify(
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{random_scalar, random_point, basepoint_order};
+    use crate::utils::{basepoint_order, random_point, random_scalar};
 
     use super::*;
     use rand::rngs::OsRng;
@@ -78,14 +78,22 @@ mod tests {
     #[test]
     fn nizqdleq_proof_test() {
         let mut rng = OsRng;
-        let esk =  random_scalar(&mut rng);
+        let esk = random_scalar(&mut rng);
         let x_big = random_point(&mut rng);
         let y_big = esk * x_big;
         let q_big = random_point(&mut rng);
         let r_big = esk * q_big;
 
         let basepoint_order = basepoint_order();
-        let z = prove(&basepoint_order, &x_big, &y_big, &q_big, &r_big, &esk, &mut rng);
+        let z = prove(
+            &basepoint_order,
+            &x_big,
+            &y_big,
+            &q_big,
+            &r_big,
+            &esk,
+            &mut rng,
+        );
         let result = verify(&basepoint_order, &x_big, &y_big, &q_big, &r_big, &z);
         assert!(result);
     }
