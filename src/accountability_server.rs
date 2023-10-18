@@ -274,6 +274,9 @@ impl AccountabilityServer {
 
 #[cfg(test)]
 mod tests {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+
     use super::*;
     use crate::sender::Sender;
 
@@ -413,5 +416,25 @@ mod tests {
         );
         // Reported tags do not reach threshold and score can grow
         assert_eq!(new_score, -9);
+    }
+
+    #[test]
+    fn issue_tag_test() {
+        let mut rng = OsRng;
+        let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
+        let mut mac = Hmac::<Sha256>::new_from_slice(&[0u8; 32]).unwrap();
+        mac.update("receiver".as_bytes());
+        mac.update("This is a test message".as_bytes());
+        let commitment = mac.finalize();
+
+        let sender = Sender::new("sender1", &mut rng);
+        accsvr.set_sender_pk(&sender.epk, &sender.handle);
+
+        let tag_res = accsvr.issue_tag(&commitment.into_bytes().to_vec(), &sender.handle, 24, &mut rng);
+        assert!(tag_res.is_ok());
+
+        let tag = tag_res.unwrap();
+        let binary = bincode::serialize(&tag).unwrap();
+        assert_eq!(binary.len(), 372);
     }
 }

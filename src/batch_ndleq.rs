@@ -1,8 +1,8 @@
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand_chacha::ChaCha20Rng;
-use rand::{CryptoRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};
-use crate::{nizqdleq, utils::{basepoint_order}};
+use crate::{nizqdleq, utils::basepoint_order};
 
 #[derive(Debug)]
 pub struct BatchNdleqError(pub String);

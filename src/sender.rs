@@ -97,6 +97,11 @@ mod tests {
         let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
         let sender = Sender::new("Alice", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
-        let _ = sender.get_tag("Hello Bob", "Bob", &accsvr, &mut rng);
+        let tag_opt = sender.get_tag("Hello Bob", "Bob", &accsvr, &mut rng);
+        assert!(tag_opt.is_ok());
+
+        let tag = tag_opt.unwrap();
+        let binary = bincode::serialize(&tag).unwrap();
+        assert_eq!(binary.len(), 508);
     }
 }

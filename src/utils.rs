@@ -1,4 +1,6 @@
 #![allow(deprecated)]
+use std::array::TryFromSliceError;
+
 use aes::{
     cipher::{
         generic_array::GenericArray, BlockDecrypt, BlockEncrypt, BlockSizeUser, KeyInit,
@@ -12,8 +14,6 @@ use curve25519_dalek::{
 };
 use ed25519_dalek::{Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use rand::{CryptoRng, RngCore};
-use rand_chacha::rand_core::OsRng;
-
 use crate::{sender_records::SenderId, tag::Tag};
 
 pub fn random_scalar<R>(rng: &mut R) -> Scalar
@@ -121,7 +121,7 @@ pub fn verifying_key_from_vec(vk: &Vec<u8>) -> Result<VerifyingKey, String> {
 
     let vkbytes: [u8; PUBLIC_KEY_LENGTH] = vk[..PUBLIC_KEY_LENGTH]
         .try_into()
-        .map_err(|_| "Invalid verifying key".to_string())?;
+        .map_err(|e: TryFromSliceError| format!("Invalid verifying key: {}", e.to_string()))?;
 
     let verifying_key =
         VerifyingKey::from_bytes(&vkbytes).map_err(|_| "Invalid verifying key".to_string())?;
