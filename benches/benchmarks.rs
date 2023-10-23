@@ -1,5 +1,5 @@
 use acctblty::{
-    accountability_server::AccountabilityServer,
+    accountability_server::{AccServerParams, AccountabilityServer},
     sender::Sender,
     tag::Tag,
     tag_verifier,
@@ -11,7 +11,15 @@ use rand::{rngs::OsRng, RngCore};
 
 fn get_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let mut server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(
+        AccServerParams {
+            maximum_score: 100,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+        },
+        &mut rng,
+    );
     let sender = Sender::new("sender1", &mut rng);
     server.set_sender_pk(&sender.epk, &sender.handle);
 
@@ -28,20 +36,27 @@ fn get_tag_bench(c: &mut Criterion) {
 
 fn issue_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let mut server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(
+        AccServerParams {
+            maximum_score: 100,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+        },
+        &mut rng,
+    );
 
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
 
     let sender_handle = "sender_handle";
-    let tag_duration = 24;
     let sender = Sender::new(sender_handle, &mut rng);
     server.set_sender_pk(&sender.epk, &sender.handle);
 
     c.bench_function("issue_tag", |b| {
         b.iter(|| {
             let result =
-                server.issue_tag(&commitment.to_vec(), sender_handle, tag_duration, &mut rng);
+                server.issue_tag(&commitment.to_vec(), sender_handle, &mut rng);
             assert!(result.is_ok());
         })
     });
@@ -49,7 +64,15 @@ fn issue_tag_bench(c: &mut Criterion) {
 
 fn verify_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let mut server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(
+        AccServerParams {
+            maximum_score: 100,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+        },
+        &mut rng,
+    );
     let sender = Sender::new("sender1", &mut rng);
     server.set_sender_pk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
@@ -78,7 +101,15 @@ fn verify_tag_bench(c: &mut Criterion) {
 
 fn report_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let mut server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(
+        AccServerParams {
+            maximum_score: 100,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+        },
+        &mut rng,
+    );
 
     const NUM_SENDERS: usize = 1000000;
 
@@ -178,7 +209,15 @@ fn verify_nizqdleq_proof_bench(c: &mut Criterion) {
 
 fn end_to_end_bench(c: &mut Criterion) {
     let mut rng = OsRng;
-    let mut server = AccountabilityServer::new(100, 10, &mut rng);
+    let mut server = AccountabilityServer::new(
+        AccServerParams {
+            maximum_score: 100,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+        },
+        &mut rng,
+    );
     let sender = Sender::new("sender1", &mut rng);
     server.set_sender_pk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();

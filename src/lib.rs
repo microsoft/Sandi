@@ -13,7 +13,10 @@ pub fn prove() {}
 
 #[cfg(test)]
 mod tests {
-    use crate::{accountability_server::AccountabilityServer, sender::Sender};
+    use crate::{
+        accountability_server::{AccServerParams, AccountabilityServer},
+        sender::Sender,
+    };
     use rand::rngs::OsRng;
 
     use super::*;
@@ -21,7 +24,15 @@ mod tests {
     #[test]
     fn issue_tag_test() {
         let mut rng = OsRng;
-        let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
+        let mut accsvr = AccountabilityServer::new(
+            AccServerParams {
+                maximum_score: 100,
+                report_threashold: 10,
+                epoch_duration: 24,
+                tag_duration: 2,
+            },
+            &mut rng,
+        );
         let sender = Sender::new("sender1", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 

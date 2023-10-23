@@ -56,7 +56,6 @@ impl Sender {
         let tag_res = accountability_server.issue_tag(
             &commitment.into_bytes().to_vec(),
             &self.handle,
-            24,
             rng,
         );
 
@@ -88,13 +87,21 @@ impl Sender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::accountability_server::AccountabilityServer;
+    use crate::accountability_server::{AccServerParams, AccountabilityServer};
     use rand::rngs::OsRng;
 
     #[test]
     fn get_tag_test() {
         let mut rng = OsRng;
-        let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
+        let mut accsvr = AccountabilityServer::new(
+            AccServerParams {
+                maximum_score: 100,
+                report_threashold: 10,
+                epoch_duration: 24,
+                tag_duration: 2,
+            },
+            &mut rng,
+        );
         let sender = Sender::new("Alice", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
         let tag_opt = sender.get_tag("Hello Bob", "Bob", &accsvr, &mut rng);

@@ -3,9 +3,9 @@ use crate::sender_records::{SenderRecord, SenderRecords};
 use crate::tag::Tag;
 use crate::utils::{
     basepoint_order, cipher_block_size, concat_id_and_scalars, decrypt, encrypt, random_scalar,
-    verify_signature, SignatureVerificationError, G,
+    verify_signature, SignatureVerificationError, G, get_start_of_day,
 };
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use ed25519_dalek::{Signer, SigningKey};
 use rand::rngs::OsRng;
@@ -13,22 +13,50 @@ use rand::{CryptoRng, RngCore};
 use sha2::Sha512;
 use std::cmp;
 
+
+// Provides ability to manipulate time for testing purposes
+pub(crate) trait TimeProvider {
+    fn get_current_time(&self) -> i64;
+}
+
 pub struct AccountabilityServer {
     enc_secret_key: [u8; 32],
     signing_key: SigningKey,
-    maximum_score: i32,
-    reputation_threashold: i32,
+    params: AccServerParams,
     pub(crate) sender_records: SenderRecords,
+    time_provider: Box<dyn TimeProvider>,
 }
+
+pub struct AccServerParams {
+    // Maximum score a sender can have
+    pub maximum_score: i32,
+    // Report threshold to affect score
+    pub report_threashold: i32,
+    // Epoch duration in hours
+    pub epoch_duration: usize,
+    // Tag duration in epochs
+    pub tag_duration: usize,
+}
+
+// The default implementation will return the correct time
+pub(crate) struct DefaultTimeProvider {}
 
 #[derive(Debug)]
 pub struct AccSvrError(pub String);
 
 impl AccountabilityServer {
-    pub fn new<R>(
-        maximum_score: i32,
-        reputation_threashold: i32,
+    pub fn new<R>(params: AccServerParams, rng: &mut R) -> AccountabilityServer
+    where
+        R: RngCore + CryptoRng,
+    {
+        let tp = Box::new(DefaultTimeProvider {});
+        AccountabilityServer::new_with_time_provider(params, rng, tp)
+    }
+
+    pub(crate) fn new_with_time_provider<R>(
+        params: AccServerParams,
         rng: &mut R,
+        time_provider: Box<dyn TimeProvider>,
     ) -> AccountabilityServer
     where
         R: RngCore + CryptoRng,
@@ -42,9 +70,9 @@ impl AccountabilityServer {
         AccountabilityServer {
             enc_secret_key,
             signing_key,
-            maximum_score,
-            reputation_threashold,
+            params,
             sender_records,
+            time_provider,
         }
     }
 
@@ -57,7 +85,7 @@ impl AccountabilityServer {
             }
             None => {
                 let mut rng = OsRng;
-                let mut sender = SenderRecord::new(sender_handle, &mut rng);
+                let mut sender = SenderRecord::new(sender_handle, self.params.tag_duration, &mut rng);
                 sender.epk = epk.clone();
                 self.sender_records.set_sender(sender);
             }
@@ -68,7 +96,6 @@ impl AccountabilityServer {
         &self,
         commitment: &Vec<u8>,
         sender_handle: &str,
-        tag_duration: u32,
         rng: &mut R,
     ) -> Result<Tag, AccSvrError>
     where
@@ -111,9 +138,10 @@ impl AccountabilityServer {
         encrypt(&self.enc_secret_key, &mut encrypted_sender_id);
 
         // Get expiration date for the tag
-        // tag_duration is in hours
-        let expiration_date =
-            Utc::now().timestamp() + Duration::hours(tag_duration as i64).num_seconds();
+        // Compute as epoch duration in hours * tag duration in epochs
+        let expiration_date = self.time_provider.get_current_time()
+            + Duration::hours((self.params.tag_duration * self.params.epoch_duration) as i64)
+                .num_seconds();
 
         // Then, we sign tag information
         let mut data_to_sign = Vec::new();
@@ -158,7 +186,8 @@ impl AccountabilityServer {
         r_big: RistrettoPoint,
     ) -> Result<(), AccSvrError> {
         // Check if tag is expired
-        if tag.exp_timestamp < Utc::now().timestamp() {
+        let utc_now = self.time_provider.get_current_time();
+        if tag.exp_timestamp < utc_now {
             return Err(AccSvrError("Tag is expired".to_string()));
         }
 
@@ -216,10 +245,29 @@ impl AccountabilityServer {
                     return Ok(());
                 }
 
+                // Obtain the counter index for the tag.
+                // The counter index is the number of epochs ago the tag was issued
+                let issue_date = tag.exp_timestamp
+                    - (self.params.epoch_duration as i64 * 3600 * self.params.tag_duration as i64);
+
+                // We'll assume epochs start at the beginning of the day
+                let epoch_start = get_start_of_day(utc_now);
+                let mut start_period = epoch_start - self.params.tag_duration as i64 * 3600 * 24;
+                let mut end_period = start_period + 3600 * 24;
+                let mut counter_idx = self.params.tag_duration;
+                for _ in 0..=self.params.tag_duration {
+                    if issue_date >= start_period && issue_date <= end_period {
+                        break;
+                    }
+                    start_period += 3600 * 24;
+                    end_period += 3600 * 24;
+                    counter_idx -= 1;
+                }
+
                 // Tag is valid, so we add it to the unprocessed tags
                 sender.reported_tags.insert(tag.signature.clone(), tag);
                 sender.tokens.push((n, sigma));
-                sender.report_count += 1;
+                sender.report_count[counter_idx] += 1;
 
                 self.sender_records.set_sender(sender);
             }
@@ -235,15 +283,15 @@ impl AccountabilityServer {
         current_score: i32,
         reported_tag_count: i32,
         maximum_score: i32,
-        score_threashold: i32,
+        report_threashold: i32,
     ) -> i32 {
-        if reported_tag_count >= score_threashold {
-            return current_score - reported_tag_count + score_threashold;
-        } else if reported_tag_count < score_threashold && current_score >= 0 {
+        if reported_tag_count >= report_threashold {
+            return current_score - reported_tag_count + report_threashold;
+        } else if reported_tag_count < report_threashold && current_score >= 0 {
             return cmp::min(current_score + 1, maximum_score);
         } else {
-            assert!(reported_tag_count < score_threashold && current_score < 0);
-            return cmp::min(current_score - reported_tag_count + score_threashold, 0);
+            assert!(reported_tag_count < report_threashold && current_score < 0);
+            return cmp::min(current_score - reported_tag_count + report_threashold, 0);
         }
     }
 
@@ -251,17 +299,22 @@ impl AccountabilityServer {
         self.sender_records.for_each(|sender| {
             sender.score = AccountabilityServer::update_score(
                 sender.score,
-                sender.report_count,
-                self.maximum_score,
-                self.reputation_threashold,
+                sender.report_count[0],
+                self.params.maximum_score,
+                self.params.report_threashold,
             );
 
-            sender.report_count = 0;
+            // Shift all values to the left
+            for i in 0..(sender.report_count.len() - 1) {
+                sender.report_count[i] = sender.report_count[i + 1];
+            }
+            let rep_count = sender.report_count.len() - 1;
+            sender.report_count[rep_count] = 0;
 
             // Get rid of expired tags
             let mut expired_tags: Vec<Vec<u8>> = Vec::new();
             for (signature, tag) in &sender.reported_tags {
-                if tag.exp_timestamp < Utc::now().timestamp() {
+                if tag.exp_timestamp < self.time_provider.get_current_time() {
                     expired_tags.push(signature.clone());
                 }
             }
@@ -272,18 +325,44 @@ impl AccountabilityServer {
     }
 }
 
+impl TimeProvider for DefaultTimeProvider {
+    fn get_current_time(&self) -> i64 {
+        chrono::Utc::now().timestamp()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use hmac::{Hmac, Mac};
+    use rand::Rng;
     use sha2::Sha256;
+    use chrono::{NaiveDateTime, TimeZone, Utc};
 
     use super::*;
     use crate::sender::Sender;
 
+    static mut MOCK_TIME: i64 = 0;
+
+    struct MockTimeProvider {}
+
+    impl TimeProvider for MockTimeProvider {
+        fn get_current_time(&self) -> i64 {
+            unsafe { MOCK_TIME }
+        }
+    }
+
     #[test]
     fn update_scores_test() {
         let mut rng = OsRng;
-        let mut server = AccountabilityServer::new(1000, 10, &mut rng);
+        let mut server = AccountabilityServer::new(
+            AccServerParams {
+                maximum_score: 1000,
+                report_threashold: 10,
+                epoch_duration: 24,
+                tag_duration: 2,
+            },
+            &mut rng,
+        );
 
         // Initialize senders
         let mut senders: Vec<Sender> = Vec::new();
@@ -308,7 +387,7 @@ mod tests {
 
         // Before the report the count should be 0
         for sender in &server.sender_records.records {
-            assert_eq!(sender.1.report_count, 0);
+            assert_eq!(sender.1.report_count[0], 0);
             assert_eq!(sender.1.reported_tags.len(), 0);
             assert_eq!(sender.1.tokens.len(), 0);
         }
@@ -321,7 +400,7 @@ mod tests {
 
         // After the report the count should be 100
         for sender in &server.sender_records.records {
-            assert_eq!(sender.1.report_count, 100);
+            assert_eq!(sender.1.report_count[0], 100);
             assert_eq!(sender.1.reported_tags.len(), 100);
             assert_eq!(sender.1.tokens.len(), 100);
         }
@@ -331,7 +410,7 @@ mod tests {
 
         // After updateing scores the count should be 0 again
         for sender in &server.sender_records.records {
-            assert_eq!(sender.1.report_count, 0);
+            assert_eq!(sender.1.report_count[0], 0);
             assert_eq!(sender.1.reported_tags.len(), 100);
             assert_eq!(sender.1.tokens.len(), 100);
         }
@@ -421,7 +500,15 @@ mod tests {
     #[test]
     fn issue_tag_test() {
         let mut rng = OsRng;
-        let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
+        let mut accsvr = AccountabilityServer::new(
+            AccServerParams {
+                maximum_score: 100,
+                report_threashold: 10,
+                epoch_duration: 24,
+                tag_duration: 2,
+            },
+            &mut rng,
+        );
         let mut mac = Hmac::<Sha256>::new_from_slice(&[0u8; 32]).unwrap();
         mac.update("receiver".as_bytes());
         mac.update("This is a test message".as_bytes());
@@ -433,7 +520,6 @@ mod tests {
         let tag_res = accsvr.issue_tag(
             &commitment.into_bytes().to_vec(),
             &sender.handle,
-            24,
             &mut rng,
         );
         assert!(tag_res.is_ok());
@@ -441,5 +527,89 @@ mod tests {
         let tag = tag_res.unwrap();
         let binary = bincode::serialize(&tag).unwrap();
         assert_eq!(binary.len(), 372);
+    }
+
+    #[test]
+    fn expiration_date_test()
+    {
+        let tag_duration = 2;
+        let epoch_duration = 24;
+        let tag_hours = tag_duration * epoch_duration;
+        let seconds = Duration::hours(tag_hours).num_seconds();
+
+        // Get expiration date for the tag
+        // Compute as epoch duration in hours * tag duration in epochs
+        let dt = Utc.from_utc_datetime(&NaiveDateTime::parse_from_str("2015-09-05 14:00:00", "%Y-%m-%d %H:%M:%S").unwrap());
+        let expiration_date = dt.timestamp() + seconds;
+        let edt = Utc.from_utc_datetime(&NaiveDateTime::parse_from_str("2015-09-07 14:00:00", "%Y-%m-%d %H:%M:%S").unwrap());
+        assert_eq!(expiration_date, edt.timestamp());
+    }
+
+    #[test]
+    fn compute_score_with_epochs_test()
+    {
+        let mut rng = OsRng;
+        let time_provider = Box::new(MockTimeProvider {});
+
+        let mut acc_svr = AccountabilityServer::new_with_time_provider(
+            AccServerParams {
+                maximum_score: 100,
+                report_threashold: 10,
+                epoch_duration: 24,
+                tag_duration: 2,
+            },
+            &mut rng,
+            time_provider,
+        );
+
+        let sender = Sender::new("sender1", &mut rng);
+        acc_svr.set_sender_pk(&sender.epk, &sender.handle);
+
+        // Get tags
+        let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
+
+        // UTC now will be the timestamp of a specific UTC date
+        let utc_now  = Utc.from_utc_datetime(&NaiveDateTime::parse_from_str("2015-09-07 14:30:00", "%Y-%m-%d %H:%M:%S").unwrap()).timestamp();
+
+        // Starting range is 3 days ago
+        let starting_range = utc_now - 3 * 24 * 3600;
+        // Ending range is now minus 10 minutes
+        let ending_range = utc_now;
+
+        // Generate tags with random timestamps
+        for _ in 0..1000 {
+            let timestamp = rng.gen_range(starting_range..ending_range);
+            unsafe { MOCK_TIME = timestamp };
+            tags.push(
+                sender
+                    .get_tag("This is the message", "receiver", &acc_svr, &mut rng)
+                    .unwrap(),
+            );
+        }
+
+        // Report tags. Time should be the correct one noe
+        unsafe { MOCK_TIME = utc_now };
+        let mut expired_tags = 0;
+        for tag in tags {
+            let result = acc_svr.report(tag.0, tag.2, tag.3);
+            match result {
+                Ok(_) => {}
+                Err(AccSvrError(err_msg)) => {
+                    if err_msg != "Tag is expired" {
+                        panic!("Error reporting tag: {}", err_msg);
+                    }
+                    expired_tags += 1;
+                }
+            }
+        }
+
+        // After the report each count should be at least bigger than zero
+        println!("Expired tags: {}", expired_tags);
+        for sender in &acc_svr.sender_records.records {
+            for i in 0..sender.1.report_count.len() {
+                println!("Report count: {}", sender.1.report_count[i]);
+                assert!(sender.1.report_count[i] > 0);
+            }
+        }
     }
 }

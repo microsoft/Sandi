@@ -71,7 +71,7 @@ pub fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::accountability_server::AccountabilityServer;
+    use crate::accountability_server::{AccServerParams, AccountabilityServer};
     use crate::sender::Sender;
     use rand::rngs::OsRng;
 
@@ -80,7 +80,15 @@ mod tests {
         let receiver_handle = "receiver";
         let message = "message to be sent";
         let mut rng = OsRng;
-        let mut accsvr = AccountabilityServer::new(100, 10, &mut rng);
+        let mut accsvr = AccountabilityServer::new(
+            AccServerParams {
+                maximum_score: 100,
+                report_threashold: 10,
+                epoch_duration: 24,
+                tag_duration: 2,
+            },
+            &mut rng,
+        );
         let sender = Sender::new("sender", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 
