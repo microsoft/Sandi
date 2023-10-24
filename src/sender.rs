@@ -53,11 +53,8 @@ impl Sender {
         mac.update(msg.as_bytes());
         let commitment = mac.finalize();
 
-        let tag_res = accountability_server.issue_tag(
-            &commitment.into_bytes().to_vec(),
-            &self.handle,
-            rng,
-        );
+        let tag_res =
+            accountability_server.issue_tag(&commitment.into_bytes().to_vec(), &self.handle, rng);
 
         match tag_res {
             Ok(tag) => {

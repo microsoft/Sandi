@@ -2,8 +2,8 @@ use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords};
 use crate::tag::Tag;
 use crate::utils::{
-    basepoint_order, cipher_block_size, concat_id_and_scalars, decrypt, encrypt, random_scalar,
-    verify_signature, SignatureVerificationError, G, get_start_of_day,
+    basepoint_order, cipher_block_size, concat_id_and_scalars, decrypt, encrypt, get_start_of_day,
+    random_scalar, verify_signature, SignatureVerificationError, G,
 };
 use chrono::Duration;
 use curve25519_dalek::{RistrettoPoint, Scalar};
@@ -12,7 +12,6 @@ use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
 use sha2::Sha512;
 use std::cmp;
-
 
 // Provides ability to manipulate time for testing purposes
 pub(crate) trait TimeProvider {
@@ -85,7 +84,8 @@ impl AccountabilityServer {
             }
             None => {
                 let mut rng = OsRng;
-                let mut sender = SenderRecord::new(sender_handle, self.params.tag_duration, &mut rng);
+                let mut sender =
+                    SenderRecord::new(sender_handle, self.params.tag_duration, &mut rng);
                 sender.epk = epk.clone();
                 self.sender_records.set_sender(sender);
             }
@@ -333,10 +333,10 @@ impl TimeProvider for DefaultTimeProvider {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{NaiveDateTime, TimeZone, Utc};
     use hmac::{Hmac, Mac};
     use rand::Rng;
     use sha2::Sha256;
-    use chrono::{NaiveDateTime, TimeZone, Utc};
 
     use super::*;
     use crate::sender::Sender;
@@ -517,11 +517,7 @@ mod tests {
         let sender = Sender::new("sender1", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 
-        let tag_res = accsvr.issue_tag(
-            &commitment.into_bytes().to_vec(),
-            &sender.handle,
-            &mut rng,
-        );
+        let tag_res = accsvr.issue_tag(&commitment.into_bytes().to_vec(), &sender.handle, &mut rng);
         assert!(tag_res.is_ok());
 
         let tag = tag_res.unwrap();
@@ -530,8 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn expiration_date_test()
-    {
+    fn expiration_date_test() {
         let tag_duration = 2;
         let epoch_duration = 24;
         let tag_hours = tag_duration * epoch_duration;
@@ -539,15 +534,18 @@ mod tests {
 
         // Get expiration date for the tag
         // Compute as epoch duration in hours * tag duration in epochs
-        let dt = Utc.from_utc_datetime(&NaiveDateTime::parse_from_str("2015-09-05 14:00:00", "%Y-%m-%d %H:%M:%S").unwrap());
+        let dt = Utc.from_utc_datetime(
+            &NaiveDateTime::parse_from_str("2015-09-05 14:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
+        );
         let expiration_date = dt.timestamp() + seconds;
-        let edt = Utc.from_utc_datetime(&NaiveDateTime::parse_from_str("2015-09-07 14:00:00", "%Y-%m-%d %H:%M:%S").unwrap());
+        let edt = Utc.from_utc_datetime(
+            &NaiveDateTime::parse_from_str("2015-09-07 14:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
+        );
         assert_eq!(expiration_date, edt.timestamp());
     }
 
     #[test]
-    fn compute_score_with_epochs_test()
-    {
+    fn compute_score_with_epochs_test() {
         let mut rng = OsRng;
         let time_provider = Box::new(MockTimeProvider {});
 
@@ -569,7 +567,11 @@ mod tests {
         let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
 
         // UTC now will be the timestamp of a specific UTC date
-        let utc_now  = Utc.from_utc_datetime(&NaiveDateTime::parse_from_str("2015-09-07 14:30:00", "%Y-%m-%d %H:%M:%S").unwrap()).timestamp();
+        let utc_now = Utc
+            .from_utc_datetime(
+                &NaiveDateTime::parse_from_str("2015-09-07 14:30:00", "%Y-%m-%d %H:%M:%S").unwrap(),
+            )
+            .timestamp();
 
         // Starting range is 3 days ago
         let starting_range = utc_now - 3 * 24 * 3600;

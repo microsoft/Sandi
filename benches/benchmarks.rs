@@ -55,8 +55,7 @@ fn issue_tag_bench(c: &mut Criterion) {
 
     c.bench_function("issue_tag", |b| {
         b.iter(|| {
-            let result =
-                server.issue_tag(&commitment.to_vec(), sender_handle, &mut rng);
+            let result = server.issue_tag(&commitment.to_vec(), sender_handle, &mut rng);
             assert!(result.is_ok());
         })
     });
