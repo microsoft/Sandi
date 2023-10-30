@@ -7,7 +7,7 @@ use crate::{
     accountability_server::{AccSvrError, AccountabilityServer},
     nizqdleq,
     tag::Tag,
-    utils::G,
+    utils::{G, basepoint_order},
 };
 
 pub struct Sender {
@@ -65,7 +65,7 @@ impl Sender {
                 }
                 let r_big = self.esk * tag.q_big;
                 let z = nizqdleq::prove(
-                    &tag.basepoint_order,
+                    &basepoint_order(),
                     &tag.g_prime,
                     &tag.x_big,
                     &tag.q_big,
@@ -105,7 +105,8 @@ mod tests {
         assert!(tag_opt.is_ok());
 
         let tag = tag_opt.unwrap();
-        let binary = bincode::serialize(&tag).unwrap();
-        assert_eq!(binary.len(), 508);
+
+        let binary: heapless::Vec<u8, 420> = postcard::to_vec(&tag).unwrap();
+        assert_eq!(binary.len(), 411);
     }
 }

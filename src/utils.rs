@@ -94,8 +94,8 @@ pub fn verify_signature(
     data_to_sign.extend_from_slice(tag.exp_timestamp.to_be_bytes().as_slice());
     data_to_sign.extend_from_slice(tag.score.to_be_bytes().as_slice());
     data_to_sign.extend_from_slice(&tag.enc_sender_id);
-    data_to_sign.extend_from_slice(tag.basepoint_order.as_bytes());
-    data_to_sign.extend_from_slice(tag.basepoint.compress().as_bytes());
+    data_to_sign.extend_from_slice(basepoint_order().as_bytes());
+    data_to_sign.extend_from_slice(G().compress().as_bytes());
     data_to_sign.extend_from_slice(tag.q_big.compress().as_bytes());
     data_to_sign.extend_from_slice(tag.g_prime.compress().as_bytes());
     data_to_sign.extend_from_slice(tag.x_big.compress().as_bytes());

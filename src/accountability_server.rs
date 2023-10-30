@@ -163,8 +163,6 @@ impl AccountabilityServer {
             exp_timestamp: expiration_date,
             score: sender.score,
             enc_sender_id: encrypted_sender_id.to_vec(),
-            basepoint_order: basepoint_order(),
-            basepoint: G(),
             q_big,
             g_prime,
             x_big,
@@ -206,7 +204,7 @@ impl AccountabilityServer {
 
         // Verify NIZQDLEQ
         let nizqdleq_result = nizqdleq::verify(
-            &tag.basepoint_order,
+            &basepoint_order(),
             &tag.g_prime,
             &tag.x_big,
             &tag.q_big,
@@ -521,8 +519,9 @@ mod tests {
         assert!(tag_res.is_ok());
 
         let tag = tag_res.unwrap();
-        let binary = bincode::serialize(&tag).unwrap();
-        assert_eq!(binary.len(), 372);
+
+        let binary: heapless::Vec<u8, 290> = postcard::to_vec(&tag).unwrap();
+        assert_eq!(binary.len(), 282);
     }
 
     #[test]

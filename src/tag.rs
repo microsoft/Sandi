@@ -1,4 +1,4 @@
-use curve25519_dalek::{RistrettoPoint, Scalar};
+use curve25519_dalek::RistrettoPoint;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -7,8 +7,6 @@ pub struct Tag {
     pub exp_timestamp: i64,
     pub score: i32,
     pub enc_sender_id: Vec<u8>,
-    pub basepoint_order: Scalar,
-    pub basepoint: RistrettoPoint,
     pub q_big: RistrettoPoint,
     pub g_prime: RistrettoPoint,
     pub x_big: RistrettoPoint,

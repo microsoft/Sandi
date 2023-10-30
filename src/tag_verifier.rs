@@ -1,7 +1,7 @@
 use crate::{
     nizqdleq,
     tag::Tag,
-    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError},
+    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError, basepoint_order},
 };
 use chrono::Utc;
 use curve25519_dalek::{RistrettoPoint, Scalar};
@@ -54,7 +54,7 @@ pub fn verify(
 
     // Verify NIZKDLEG
     let nizqdleq_result = nizqdleq::verify(
-        &tag.basepoint_order,
+        &basepoint_order(),
         &tag.g_prime,
         &tag.x_big,
         &tag.q_big,
