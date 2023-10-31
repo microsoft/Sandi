@@ -1,0 +1,19 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+include "common.fbs";
+
+namespace reputation.fbs;
+
+table Tag {
+    commitment: FixedBuffer32 (required);
+    expiration: int64;
+    score: int32;
+    enc_sender_id: FixedBuffer16 (required);
+    q_big: FixedBuffer32 (required);
+    g_prime: FixedBuffer32 (required);
+    x_big: FixedBuffer32 (required);
+    signature: FixedBuffer64 (required);
+}
+
+root_type Tag;

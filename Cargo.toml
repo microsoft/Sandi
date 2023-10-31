@@ -15,9 +15,13 @@ chrono = "0.4"
 rand_chacha = "0.3"
 postcard = "1.0"
 heapless = "0.7"
+flatbuffers = "23.5"
 
 [dev-dependencies]
 criterion = "0.5"
+
+[build-dependencies]
+flatc = "0.2"
 
 [[bench]]
 name = "benchmarks"

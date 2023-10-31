@@ -1,0 +1,16 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+namespace reputation.fbs;
+
+struct FixedBuffer16 {
+    data: [byte: 16];
+}
+
+struct FixedBuffer32 {
+    data: [byte:32];
+}
+
+struct FixedBuffer64 {
+    data: [byte: 64];
+}

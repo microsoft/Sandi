@@ -1,0 +1,27 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+include "common.fbs";
+
+namespace reputation.fbs;
+
+struct Tag {
+    commitment: FixedBuffer32;
+    expiration: int64;
+    score: int32;
+    enc_sender_id: FixedBuffer16;
+    q_big: FixedBuffer32;
+    g_prime: FixedBuffer32;
+    x_big: FixedBuffer32;
+    signature: FixedBuffer64;
+}
+
+table FullTag {
+    tag: Tag (required);
+    randomness: FixedBuffer32 (required);
+    proof_s: FixedBuffer32 (required);
+    proof_c: FixedBuffer32 (required);
+    r_big: FixedBuffer32 (required);
+}
+
+root_type FullTag;
