@@ -8,7 +8,7 @@ struct FixedBuffer16 {
 }
 
 struct FixedBuffer32 {
-    data: [byte:32];
+    data: [byte: 32];
 }
 
 struct FixedBuffer64 {
