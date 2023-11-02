@@ -3,6 +3,7 @@ pub mod batch_ndleq;
 pub mod nizqdleq;
 pub mod sender;
 pub mod sender_records;
+pub mod serialization;
 pub mod tag;
 pub mod tag_verifier;
 pub mod utils;

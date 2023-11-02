@@ -3,7 +3,7 @@
 
 include "common.fbs";
 
-namespace reputation.fbs;
+namespace serialization;
 
 table Tag {
     commitment: FixedBuffer32 (required);

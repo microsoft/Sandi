@@ -1,7 +1,9 @@
 use crate::{
     nizqdleq,
     tag::Tag,
-    utils::{verify_signature, verifying_key_from_vec, SignatureVerificationError, basepoint_order},
+    utils::{
+        basepoint_order, verify_signature, verifying_key_from_vec, SignatureVerificationError,
+    },
 };
 use chrono::Utc;
 use curve25519_dalek::{RistrettoPoint, Scalar};
