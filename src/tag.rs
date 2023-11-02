@@ -3,7 +3,7 @@ use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use flatbuffers::FlatBufferBuilder;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Tag {
     pub commitment: Vec<u8>,
     pub exp_timestamp: i64,

@@ -337,7 +337,7 @@ mod tests {
     use sha2::Sha256;
 
     use super::*;
-    use crate::sender::Sender;
+    use crate::{sender::Sender, sender_tag::SenderTag};
 
     static mut MOCK_TIME: i64 = 0;
 
@@ -372,7 +372,7 @@ mod tests {
         }
 
         // Get tags
-        let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
+        let mut tags: Vec<SenderTag> = Vec::new();
         for idx in 0..1000 {
             // Get a random sender
             let sender_idx = idx as usize % 10;
@@ -392,7 +392,7 @@ mod tests {
 
         // Report tags
         for tag in tags {
-            let result = server.report(tag.0, tag.2, tag.3);
+            let result = server.report(tag.tag, tag.proof, tag.r_big);
             assert!(result.is_ok(), "{:?}", result.unwrap_err());
         }
 
@@ -563,7 +563,7 @@ mod tests {
         acc_svr.set_sender_pk(&sender.epk, &sender.handle);
 
         // Get tags
-        let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
+        let mut tags: Vec<SenderTag> = Vec::new();
 
         // UTC now will be the timestamp of a specific UTC date
         let utc_now = Utc
@@ -592,7 +592,7 @@ mod tests {
         unsafe { MOCK_TIME = utc_now };
         let mut expired_tags = 0;
         for tag in tags {
-            let result = acc_svr.report(tag.0, tag.2, tag.3);
+            let result = acc_svr.report(tag.tag, tag.proof, tag.r_big);
             match result {
                 Ok(_) => {}
                 Err(AccSvrError(err_msg)) => {

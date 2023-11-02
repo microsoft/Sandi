@@ -1,16 +1,45 @@
+use sender_tag::SenderTag;
+use tag_verifier::VerificationError;
+
 pub mod accountability_server;
 pub mod batch_ndleq;
 pub mod nizqdleq;
 pub mod sender;
 pub mod sender_records;
+pub mod sender_tag;
 pub mod serialization;
 pub mod tag;
 pub mod tag_verifier;
 pub mod utils;
 
-pub fn test() {}
-
-pub fn prove() {}
+pub fn verify_tag(
+    receiver_handle: &str,
+    message: &str,
+    verifying_key: &Vec<u8>,
+    tag: &Vec<u8>,
+) -> Result<i32, String> {
+    let full_tag = SenderTag::from_vec(tag);
+    match full_tag {
+        Ok(full_tag) => {
+            let verif_result = tag_verifier::verify(
+                receiver_handle,
+                message,
+                &full_tag.tag,
+                &full_tag.randomness,
+                &full_tag.proof,
+                &full_tag.r_big,
+                verifying_key,
+            );
+            match verif_result {
+                Ok(score) => return Ok(score),
+                Err(VerificationError(err_msg)) => {
+                    return Err(format!("Verification failed: {}", err_msg))
+                }
+            }
+        }
+        Err(e) => return Err(format!("Failed to deserialize tag: {}", e)),
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -46,8 +75,15 @@ mod tests {
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
-        let verif_result =
-            tag_verifier::verify(&receiver_handle, &msg, &tag.0, &tag.1, &tag.2, &tag.3, &vk);
+        let verif_result = tag_verifier::verify(
+            &receiver_handle,
+            &msg,
+            &tag.tag,
+            &tag.randomness,
+            &tag.proof,
+            &tag.r_big,
+            &vk,
+        );
         assert!(verif_result.is_ok());
 
         // Sender should have no reports
@@ -56,7 +92,7 @@ mod tests {
         assert_eq!(sender_opt.unwrap().reported_tags.len(), 0);
 
         // Report tag
-        let report_result = accsvr.report(tag.0, tag.2, tag.3);
+        let report_result = accsvr.report(tag.tag, tag.proof, tag.r_big);
         assert!(report_result.is_ok());
         let sender_opt = accsvr.sender_records.get_sender_by_handle("sender1");
         assert!(sender_opt.is_some());

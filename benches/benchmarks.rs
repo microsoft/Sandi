@@ -1,12 +1,12 @@
 use acctblty::{
     accountability_server::{AccServerParams, AccountabilityServer},
     sender::Sender,
-    tag::Tag,
+    sender_tag::SenderTag,
     tag_verifier,
     utils::{basepoint_order, random_point, random_scalar},
 };
 use criterion::{criterion_group, criterion_main, Criterion};
-use curve25519_dalek::{RistrettoPoint, Scalar};
+use curve25519_dalek::Scalar;
 use rand::{rngs::OsRng, RngCore};
 
 fn get_tag_bench(c: &mut Criterion) {
@@ -88,10 +88,10 @@ fn verify_tag_bench(c: &mut Criterion) {
             let _ = tag_verifier::verify(
                 receiver_handle,
                 msg,
-                &tag.0,
-                &tag.1,
-                &tag.2,
-                &tag.3,
+                &tag.tag,
+                &tag.randomness,
+                &tag.proof,
+                &tag.r_big,
                 &verifying_key,
             );
         })
@@ -125,7 +125,7 @@ fn report_tag_bench(c: &mut Criterion) {
     let msg = "This is a test message";
 
     // Get NUM_SENDERS tags
-    let mut tags: Vec<(Tag, Vec<u8>, (Scalar, Scalar), RistrettoPoint)> = Vec::new();
+    let mut tags: Vec<SenderTag> = Vec::new();
     for idx in 0..NUM_SENDERS {
         tags.push(
             senders[idx]
@@ -139,7 +139,7 @@ fn report_tag_bench(c: &mut Criterion) {
     c.bench_function("report_tag", |b| {
         b.iter(|| {
             let tag = tags.get(idx as usize).unwrap();
-            let result = server.report(tag.0.clone(), tag.2, tag.3);
+            let result = server.report(tag.tag.clone(), tag.proof, tag.r_big);
             assert!(result.is_ok());
             idx = idx + 1;
             assert!(idx < NUM_SENDERS);
@@ -232,13 +232,13 @@ fn end_to_end_bench(c: &mut Criterion) {
             let _ = tag_verifier::verify(
                 receiver_handle,
                 msg,
-                &tag.0,
-                &tag.1,
-                &tag.2,
-                &tag.3,
+                &tag.tag,
+                &tag.randomness,
+                &tag.proof,
+                &tag.r_big,
                 &verifying_key,
             );
-            let _ = server.report(tag.0, tag.2, tag.3);
+            let _ = server.report(tag.tag, tag.proof, tag.r_big);
             server.update_scores();
         })
     });

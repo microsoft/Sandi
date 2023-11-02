@@ -11,7 +11,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
 #[derive(Debug)]
-pub struct VerificationError(String);
+pub struct VerificationError(pub String);
 
 pub fn verify(
     receiver_handle: &str,
@@ -102,10 +102,10 @@ mod tests {
         let verif_result = verify(
             receiver_handle,
             message,
-            &tag.0,
-            &tag.1,
-            &tag.2,
-            &tag.3,
+            &tag.tag,
+            &tag.randomness,
+            &tag.proof,
+            &tag.r_big,
             &accsvr.get_verifying_key(),
         );
         assert!(verif_result.is_ok(), "{}", verif_result.unwrap_err().0);
