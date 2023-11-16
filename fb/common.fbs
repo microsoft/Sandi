@@ -3,14 +3,14 @@
 
 namespace serialization;
 
-struct FixedBuffer16 {
-    data: [byte: 16];
-}
-
 struct FixedBuffer32 {
     data: [byte: 32];
 }
 
 struct FixedBuffer64 {
     data: [byte: 64];
+}
+
+struct FixedBuffer96 {
+    data: [byte: 96];
 }

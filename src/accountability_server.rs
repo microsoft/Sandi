@@ -135,7 +135,7 @@ impl AccountabilityServer {
 
         // Then, we encrypt the sender ID, n and r
         let mut encrypted_sender_id = concat_id_and_scalars(&sender.id, &n, &r);
-        encrypt(&self.enc_secret_key, &mut encrypted_sender_id);
+        encrypt(&self.enc_secret_key, &mut encrypted_sender_id, rng);
 
         // Get expiration date for the tag
         // Compute as epoch duration in hours * tag duration in epochs
@@ -217,7 +217,7 @@ impl AccountabilityServer {
 
         // Sender Id + n + r
         let scalar_length = Scalar::ONE.as_bytes().len();
-        if tag.enc_sender_id.len() != 16 + 2 * scalar_length {
+        if tag.enc_sender_id.len() != 16 + 2 * scalar_length + 16 {
             return Err(AccSvrError("Invalid sender id".to_string()));
         }
 
@@ -229,7 +229,7 @@ impl AccountabilityServer {
         n_buff.copy_from_slice(&decrypted_sender_id[16..48]);
         let n = Scalar::from_canonical_bytes(n_buff).unwrap();
         let mut r_buff = [0u8; 32];
-        r_buff.copy_from_slice(&decrypted_sender_id[48..]);
+        r_buff.copy_from_slice(&decrypted_sender_id[48..80]);
         let r = Scalar::from_canonical_bytes(r_buff).unwrap();
         let inv_r = r.invert();
 
@@ -520,8 +520,8 @@ mod tests {
 
         let tag = tag_res.unwrap();
 
-        let binary: heapless::Vec<u8, 290> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 282);
+        let binary: heapless::Vec<u8, 350> = postcard::to_vec(&tag).unwrap();
+        assert_eq!(binary.len(), 298);
     }
 
     #[test]

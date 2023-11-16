@@ -1,4 +1,4 @@
-use crate::serialization::{FixedBuffer16, FixedBuffer32, FixedBuffer64, TagArgs};
+use crate::serialization::{FixedBuffer32, FixedBuffer64, FixedBuffer96, TagArgs};
 use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use flatbuffers::FlatBufferBuilder;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ impl Tag {
         let mut vec = Vec::new();
         let mut builder = FlatBufferBuilder::new();
         let commitment = &FixedBuffer32(self.commitment.clone().try_into().unwrap());
-        let enc_sender_id = &FixedBuffer16(self.enc_sender_id.clone().try_into().unwrap());
+        let enc_sender_id = &FixedBuffer96(self.enc_sender_id.clone().try_into().unwrap());
         let signature = &FixedBuffer64(self.signature.clone().try_into().unwrap());
         let q_big = &FixedBuffer32(self.q_big.compress().to_bytes());
         let g_prime = &FixedBuffer32(self.g_prime.compress().to_bytes());
@@ -98,19 +98,21 @@ mod tests {
         let mut signature: [u8; 64] = [0; 64];
         rng.fill_bytes(&mut signature);
 
-        let tag = Tag {
+        let mut tag = Tag {
             commitment: vec![0; 32],
             exp_timestamp: 0,
             score: 0,
-            enc_sender_id: vec![0; 16],
+            enc_sender_id: vec![0; 96],
             q_big: random_point(&mut rng),
             g_prime: random_point(&mut rng),
             x_big: random_point(&mut rng),
             signature: signature.to_vec(),
         };
 
+        rng.fill_bytes(&mut tag.enc_sender_id);
+
         let vec = tag.to_vec();
-        assert_eq!(vec.len(), 236);
+        assert_eq!(vec.len(), 316);
 
         let tag2 = Tag::from_vec(&vec);
         assert!(tag2.is_ok());
@@ -119,6 +121,7 @@ mod tests {
         assert_eq!(tag.q_big, tag2.q_big);
         assert_eq!(tag.g_prime, tag2.g_prime);
         assert_eq!(tag.x_big, tag2.x_big);
+        assert_eq!(tag.enc_sender_id, tag2.enc_sender_id);
         assert_eq!(tag.signature, tag2.signature);
     }
 }

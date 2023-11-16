@@ -4,12 +4,12 @@
 // This will turn off warnings for the generated code, since we have little
 // control over it.
 #![allow(warnings)]
-mod fixed_buffer_16_generated;
-pub use self::fixed_buffer_16_generated::*;
 mod fixed_buffer_32_generated;
 pub use self::fixed_buffer_32_generated::*;
 mod fixed_buffer_64_generated;
 pub use self::fixed_buffer_64_generated::*;
+mod fixed_buffer_96_generated;
+pub use self::fixed_buffer_96_generated::*;
 mod tag_generated;
 pub use self::tag_generated::*;
 mod full_tag_generated;

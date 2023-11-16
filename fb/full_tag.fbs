@@ -9,7 +9,7 @@ table FullTag {
     commitment: FixedBuffer32 (required);
     expiration: int64;
     score: int32;
-    enc_sender_id: FixedBuffer16 (required);
+    enc_sender_id: FixedBuffer96 (required);
     q_big: FixedBuffer32 (required);
     g_prime: FixedBuffer32 (required);
     x_big: FixedBuffer32 (required);
