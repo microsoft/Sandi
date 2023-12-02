@@ -21,7 +21,7 @@ pub fn verify(
     proof: &(Scalar, Scalar),
     r_big: &RistrettoPoint,
     verifying_key: &Vec<u8>,
-) -> Result<i32, VerificationError> {
+) -> Result<i8, VerificationError> {
     if tag.exp_timestamp < Utc::now().timestamp() {
         // Tag is expired
         return Err(VerificationError("Tag is expired".to_string()));
@@ -88,6 +88,7 @@ mod tests {
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
+                compute_score: None,
             },
             &mut rng,
         );

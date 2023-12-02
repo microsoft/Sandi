@@ -17,7 +17,7 @@ pub fn verify_tag(
     message: &str,
     verifying_key: &Vec<u8>,
     tag: &Vec<u8>,
-) -> Result<i32, String> {
+) -> Result<i8, String> {
     let full_tag = SenderTag::from_vec(tag);
     match full_tag {
         Ok(full_tag) => {
@@ -60,6 +60,7 @@ mod tests {
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
+                compute_score: None,
             },
             &mut rng,
         );

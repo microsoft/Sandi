@@ -101,6 +101,7 @@ mod tests {
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
+                compute_score: None,
             },
             &mut rng,
         );
@@ -112,6 +113,6 @@ mod tests {
         let tag = tag_opt.unwrap();
 
         let binary: heapless::Vec<u8, 450> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 427);
+        assert_eq!(binary.len(), 426);
     }
 }

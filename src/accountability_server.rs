@@ -35,10 +35,34 @@ pub struct AccServerParams {
     pub epoch_duration: usize,
     // Tag duration in epochs
     pub tag_duration: usize,
+    // Optional function to compute score category
+    pub compute_score: Option<fn(i32, i32) -> i8>,
 }
 
 // The default implementation will return the correct time
 pub(crate) struct DefaultTimeProvider {}
+
+// Default function for computing score
+fn compute_score(sender_score: i32, max_score: i32) -> i8 {
+    // We will have 5 categores: 0, 1, 2, 3, 4
+    // 0: score <= max_score / 5
+    // 1: score > max_score / 5 && score <= 2 * max_score / 5
+    // 2: score > 2 * max_score / 5 && score <= 3 * max_score / 5
+    // 3: score > 3 * max_score / 5 && score <= 4 * max_score / 5
+    // 4: score > 4 * max_score / 5
+    if sender_score < 0 {
+        return 0;
+    }
+
+    let category = sender_score / (max_score / 5);
+    match category {
+        0 => 0,
+        1 => 1,
+        2 => 2,
+        3 => 3,
+        _ => 4,
+    }
+}
 
 #[derive(Debug)]
 pub struct AccSvrError(pub String);
@@ -89,6 +113,13 @@ impl AccountabilityServer {
                 sender.epk = epk.clone();
                 self.sender_records.set_sender(sender);
             }
+        }
+    }
+
+    fn compute_score(&self, sender: &SenderRecord) -> i8 {
+        match self.params.compute_score {
+            Some(f) => f(sender.score, self.params.maximum_score),
+            None => compute_score(sender.score, self.params.maximum_score),
         }
     }
 
@@ -143,11 +174,14 @@ impl AccountabilityServer {
             + Duration::hours((self.params.tag_duration * self.params.epoch_duration) as i64)
                 .num_seconds();
 
+        // Compute score category
+        let score = self.compute_score(&sender);
+
         // Then, we sign tag information
         let mut data_to_sign = Vec::new();
         data_to_sign.extend_from_slice(&commitment);
         data_to_sign.extend_from_slice(expiration_date.to_be_bytes().as_slice());
-        data_to_sign.extend_from_slice(sender.score.to_be_bytes().as_slice());
+        data_to_sign.extend_from_slice(score.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(&encrypted_sender_id);
         data_to_sign.extend_from_slice(basepoint_order().as_bytes()); // q
         data_to_sign.extend_from_slice(G().compress().as_bytes()); // G
@@ -161,7 +195,7 @@ impl AccountabilityServer {
         let tag = Tag {
             commitment: commitment.clone(),
             exp_timestamp: expiration_date,
-            score: sender.score,
+            score: self.compute_score(&sender),
             enc_sender_id: encrypted_sender_id.to_vec(),
             q_big,
             g_prime,
@@ -358,6 +392,7 @@ mod tests {
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
+                compute_score: None,
             },
             &mut rng,
         );
@@ -504,6 +539,7 @@ mod tests {
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
+                compute_score: None,
             },
             &mut rng,
         );
@@ -521,7 +557,7 @@ mod tests {
         let tag = tag_res.unwrap();
 
         let binary: heapless::Vec<u8, 350> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 298);
+        assert_eq!(binary.len(), 297);
     }
 
     #[test]
@@ -554,6 +590,7 @@ mod tests {
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
+                compute_score: None,
             },
             &mut rng,
             time_provider,
@@ -612,5 +649,82 @@ mod tests {
                 assert!(sender.1.report_count[i] > 0);
             }
         }
+    }
+
+    #[test]
+    fn compute_score_category_test()
+    {
+        let score = compute_score(0, 100);
+        assert_eq!(score, 0);
+
+        let score = compute_score(19, 100);
+        assert_eq!(score, 0);
+
+        let score = compute_score(20, 100);
+        assert_eq!(score, 1);
+
+        let score = compute_score(39, 100);
+        assert_eq!(score, 1);
+
+        let score = compute_score(40, 100);
+        assert_eq!(score, 2);
+
+        let score = compute_score(59, 100);
+        assert_eq!(score, 2);
+
+        let score = compute_score(60, 100);
+        assert_eq!(score, 3);
+
+        let score = compute_score(79, 100);
+        assert_eq!(score, 3);
+
+        let score = compute_score(80, 100);
+        assert_eq!(score, 4);
+
+        let score = compute_score(99, 100);
+        assert_eq!(score, 4);
+
+        let score = compute_score(100, 100);
+        assert_eq!(score, 4);
+
+        let score = compute_score(-10, 100);
+        assert_eq!(score, 0);
+    }
+
+    #[test]
+    fn custom_score_function_test() {
+        let params = AccServerParams {
+            maximum_score: 100,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+            compute_score: Some(|score, _| {
+                if score < 0 {
+                    return 0;
+                }
+                if score < 50 {
+                    return 1;
+                }
+                if score < 100 {
+                    return 2;
+                }
+                return 3;
+            }),
+        };
+
+        let score = params.compute_score.unwrap()(0, 100);
+        assert_eq!(score, 1);
+
+        let score = params.compute_score.unwrap()(49, 100);
+        assert_eq!(score, 1);
+
+        let score = params.compute_score.unwrap()(50, 100);
+        assert_eq!(score, 2);
+
+        let score = params.compute_score.unwrap()(99, 100);
+        assert_eq!(score, 2);
+
+        let score = params.compute_score.unwrap()(100, 100);
+        assert_eq!(score, 3);
     }
 }

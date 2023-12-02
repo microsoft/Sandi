@@ -3,11 +3,11 @@ use acctblty::{
     sender::Sender,
     sender_tag::SenderTag,
     tag_verifier,
-    utils::{basepoint_order, random_point, random_scalar},
+    utils::{basepoint_order, random_point, random_scalar}, tag::Tag,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use curve25519_dalek::Scalar;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rngs::{OsRng, self}, RngCore, random};
 
 fn get_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
@@ -206,6 +206,143 @@ fn verify_nizqdleq_proof_bench(c: &mut Criterion) {
     });
 }
 
+fn serialize_tag_bench(c: &mut Criterion) {
+    let mut rng = OsRng;
+    let mut signature: [u8; 64] = [0; 64];
+    rng.fill_bytes(&mut signature);
+    let mut commitment = [0u8; 32];
+    rng.fill_bytes(&mut commitment);
+    let mut enc_sender_id = [0u8; 16];
+    rng.fill_bytes(&mut enc_sender_id);
+
+
+    let tag = Tag {
+        commitment: commitment.to_vec(),
+        exp_timestamp: 0,
+        score: 0,
+        enc_sender_id: enc_sender_id.to_vec(),
+        q_big: random_point(&mut rng),
+        g_prime: random_point(&mut rng),
+        x_big: random_point(&mut rng),
+        signature: signature.to_vec(),
+    };
+
+    c.bench_function("serialize_tag", |b| {
+        b.iter(|| {
+            let vec = tag.to_vec();
+            assert_eq!(vec.len(), 236);
+        });
+    });
+}
+
+fn deserialize_tag_bench(c: &mut Criterion) {
+    let mut rng = OsRng;
+    let mut signature: [u8; 64] = [0; 64];
+    rng.fill_bytes(&mut signature);
+    let mut commitment = [0u8; 32];
+    rng.fill_bytes(&mut commitment);
+    let mut enc_sender_id = [0u8; 16];
+    rng.fill_bytes(&mut enc_sender_id);
+
+    let tag = Tag {
+        commitment: commitment.to_vec(),
+        exp_timestamp: 0,
+        score: 0,
+        enc_sender_id: enc_sender_id.to_vec(),
+        q_big: random_point(&mut rng),
+        g_prime: random_point(&mut rng),
+        x_big: random_point(&mut rng),
+        signature: signature.to_vec(),
+    };
+
+    let vec = tag.to_vec();
+
+    c.bench_function("deserialize_tag", |b| {
+        b.iter(|| {
+            let result = Tag::from_vec(&vec);
+            assert!(result.is_ok());
+        });
+    });
+}
+
+fn serialize_full_tag_bench(c: &mut Criterion) {
+    let mut rng = OsRng;
+    let mut signature: [u8; 64] = [0; 64];
+    rng.fill_bytes(&mut signature);
+    let mut commitment = [0u8; 32];
+    rng.fill_bytes(&mut commitment);
+    let mut enc_sender_id = [0u8; 16];
+    rng.fill_bytes(&mut enc_sender_id);
+    let mut randomness = [0u8; 32];
+    rng.fill_bytes(&mut randomness);
+    let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
+
+    let tag = Tag {
+        commitment: commitment.to_vec(),
+        exp_timestamp: 0,
+        score: 0,
+        enc_sender_id: enc_sender_id.to_vec(),
+        q_big: random_point(&mut rng),
+        g_prime: random_point(&mut rng),
+        x_big: random_point(&mut rng),
+        signature: signature.to_vec(),
+    };
+
+    let sender_tag = SenderTag {
+        tag,
+        randomness: randomness.to_vec(),
+        proof: proof,
+        r_big: random_point(&mut rng),
+    };
+
+    c.bench_function("serialize_full_tag", |b| {
+        b.iter(|| {
+            let vec = sender_tag.to_vec();
+            assert_eq!(vec.len(), 372);
+        });
+    });
+}
+
+fn deserialize_full_tag_bench(c: &mut Criterion) {
+    let mut rng = OsRng;
+    let mut signature: [u8; 64] = [0; 64];
+    rng.fill_bytes(&mut signature);
+    let mut commitment = [0u8; 32];
+    rng.fill_bytes(&mut commitment);
+    let mut enc_sender_id = [0u8; 16];
+    rng.fill_bytes(&mut enc_sender_id);
+    let mut randomness = [0u8; 32];
+    rng.fill_bytes(&mut randomness);
+    let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
+
+    let tag = Tag {
+        commitment: commitment.to_vec(),
+        exp_timestamp: 0,
+        score: 0,
+        enc_sender_id: enc_sender_id.to_vec(),
+        q_big: random_point(&mut rng),
+        g_prime: random_point(&mut rng),
+        x_big: random_point(&mut rng),
+        signature: signature.to_vec(),
+    };
+
+    let sender_tag = SenderTag {
+        tag,
+        randomness: randomness.to_vec(),
+        proof: proof,
+        r_big: random_point(&mut rng),
+    };
+
+    let vec = sender_tag.to_vec();
+
+    c.bench_function("deserialize_full_tag", |b| {
+        b.iter(|| {
+            let result = SenderTag::from_vec(&vec);
+            assert!(result.is_ok());
+        });
+    });
+}
+
 fn end_to_end_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut server = AccountabilityServer::new(
@@ -252,6 +389,8 @@ criterion_group!(
     generate_nizqdleq_proof_bench,
     verify_nizqdleq_proof_bench,
     report_tag_bench,
+    serialize_tag_bench,
+    serialize_full_tag_bench,
     end_to_end_bench
 );
 
