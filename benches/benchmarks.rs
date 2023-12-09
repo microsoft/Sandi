@@ -7,16 +7,17 @@ use acctblty::{
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use curve25519_dalek::Scalar;
-use rand::{rngs::{OsRng, self}, RngCore, random};
+use rand::{rngs::OsRng, RngCore};
 
 fn get_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut server = AccountabilityServer::new(
         AccServerParams {
-            maximum_score: 100,
+            maximum_score: 100.0,
             report_threashold: 10,
             epoch_duration: 24,
             tag_duration: 2,
+            compute_score: None,
         },
         &mut rng,
     );
@@ -38,10 +39,11 @@ fn issue_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut server = AccountabilityServer::new(
         AccServerParams {
-            maximum_score: 100,
+            maximum_score: 100.0,
             report_threashold: 10,
             epoch_duration: 24,
             tag_duration: 2,
+            compute_score: None,
         },
         &mut rng,
     );
@@ -65,10 +67,11 @@ fn verify_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut server = AccountabilityServer::new(
         AccServerParams {
-            maximum_score: 100,
+            maximum_score: 100.0,
             report_threashold: 10,
             epoch_duration: 24,
             tag_duration: 2,
+            compute_score: None,
         },
         &mut rng,
     );
@@ -102,10 +105,11 @@ fn report_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut server = AccountabilityServer::new(
         AccServerParams {
-            maximum_score: 100,
+            maximum_score: 100.0,
             report_threashold: 10,
             epoch_duration: 24,
             tag_duration: 2,
+            compute_score: None,
         },
         &mut rng,
     );
@@ -212,7 +216,7 @@ fn serialize_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 16];
+    let mut enc_sender_id = [0u8; 96];
     rng.fill_bytes(&mut enc_sender_id);
 
 
@@ -230,7 +234,7 @@ fn serialize_tag_bench(c: &mut Criterion) {
     c.bench_function("serialize_tag", |b| {
         b.iter(|| {
             let vec = tag.to_vec();
-            assert_eq!(vec.len(), 236);
+            assert_eq!(vec.len(), 316);
         });
     });
 }
@@ -241,7 +245,7 @@ fn deserialize_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 16];
+    let mut enc_sender_id = [0u8; 96];
     rng.fill_bytes(&mut enc_sender_id);
 
     let tag = Tag {
@@ -271,7 +275,7 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 16];
+    let mut enc_sender_id = [0u8; 96];
     rng.fill_bytes(&mut enc_sender_id);
     let mut randomness = [0u8; 32];
     rng.fill_bytes(&mut randomness);
@@ -298,7 +302,7 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     c.bench_function("serialize_full_tag", |b| {
         b.iter(|| {
             let vec = sender_tag.to_vec();
-            assert_eq!(vec.len(), 372);
+            assert_eq!(vec.len(), 452);
         });
     });
 }
@@ -309,7 +313,7 @@ fn deserialize_full_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 16];
+    let mut enc_sender_id = [0u8; 96];
     rng.fill_bytes(&mut enc_sender_id);
     let mut randomness = [0u8; 32];
     rng.fill_bytes(&mut randomness);
@@ -347,10 +351,11 @@ fn end_to_end_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut server = AccountabilityServer::new(
         AccServerParams {
-            maximum_score: 100,
+            maximum_score: 100.0,
             report_threashold: 10,
             epoch_duration: 24,
             tag_duration: 2,
+            compute_score: None,
         },
         &mut rng,
     );
@@ -390,7 +395,9 @@ criterion_group!(
     verify_nizqdleq_proof_bench,
     report_tag_bench,
     serialize_tag_bench,
+    deserialize_tag_bench,
     serialize_full_tag_bench,
+    deserialize_full_tag_bench,
     end_to_end_bench
 );
 

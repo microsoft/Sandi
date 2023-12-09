@@ -11,6 +11,7 @@ pub mod serialization;
 pub mod tag;
 pub mod tag_verifier;
 pub mod utils;
+pub mod gaussian;
 
 pub fn verify_tag(
     receiver_handle: &str,
@@ -56,7 +57,7 @@ mod tests {
         let mut rng = OsRng;
         let mut accsvr = AccountabilityServer::new(
             AccServerParams {
-                maximum_score: 100,
+                maximum_score: 100.0,
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,

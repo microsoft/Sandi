@@ -11,7 +11,6 @@ use ed25519_dalek::{Signer, SigningKey};
 use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
 use sha2::Sha512;
-use std::cmp;
 
 // Provides ability to manipulate time for testing purposes
 pub(crate) trait TimeProvider {
@@ -28,7 +27,7 @@ pub struct AccountabilityServer {
 
 pub struct AccServerParams {
     // Maximum score a sender can have
-    pub maximum_score: i32,
+    pub maximum_score: f32,
     // Report threshold to affect score
     pub report_threashold: i32,
     // Epoch duration in hours
@@ -36,32 +35,39 @@ pub struct AccServerParams {
     // Tag duration in epochs
     pub tag_duration: usize,
     // Optional function to compute score category
-    pub compute_score: Option<fn(i32, i32) -> i8>,
+    pub compute_score: Option<fn(f32, f32) -> i8>,
 }
 
 // The default implementation will return the correct time
 pub(crate) struct DefaultTimeProvider {}
 
 // Default function for computing score
-fn compute_score(sender_score: i32, max_score: i32) -> i8 {
+fn compute_score(sender_score: f32, max_score: f32) -> i8 {
     // We will have 5 categores: 0, 1, 2, 3, 4
     // 0: score <= max_score / 5
     // 1: score > max_score / 5 && score <= 2 * max_score / 5
     // 2: score > 2 * max_score / 5 && score <= 3 * max_score / 5
     // 3: score > 3 * max_score / 5 && score <= 4 * max_score / 5
     // 4: score > 4 * max_score / 5
-    if sender_score < 0 {
+    if sender_score < 0.0 {
         return 0;
     }
 
-    let category = sender_score / (max_score / 5);
-    match category {
-        0 => 0,
-        1 => 1,
-        2 => 2,
-        3 => 3,
-        _ => 4,
+    let category = sender_score / (max_score / 5.0);
+    if category < 1.0 {
+        return 0;
     }
+    if category < 2.0 {
+        return 1;
+    }
+    if category < 3.0 {
+        return 2;
+    }
+    if category < 4.0 {
+        return 3;
+    }
+
+    return 4;
 }
 
 #[derive(Debug)]
@@ -109,7 +115,7 @@ impl AccountabilityServer {
             None => {
                 let mut rng = OsRng;
                 let mut sender =
-                    SenderRecord::new(sender_handle, self.params.tag_duration, &mut rng);
+                    SenderRecord::new(sender_handle, self.params.tag_duration, self.params.maximum_score, &mut rng);
                 sender.epk = epk.clone();
                 self.sender_records.set_sender(sender);
             }
@@ -312,18 +318,19 @@ impl AccountabilityServer {
     }
 
     fn update_score(
-        current_score: i32,
+        current_score: f32,
         reported_tag_count: i32,
-        maximum_score: i32,
+        maximum_score: f32,
         report_threashold: i32,
-    ) -> i32 {
+        b: f32,
+    ) -> f32 {
         if reported_tag_count >= report_threashold {
-            return current_score - reported_tag_count + report_threashold;
-        } else if reported_tag_count < report_threashold && current_score >= 0 {
-            return cmp::min(current_score + 1, maximum_score);
+            return current_score - (reported_tag_count - report_threashold) as f32;
+        } else if reported_tag_count < report_threashold && current_score >= 0.0 {
+            return (current_score + b).min(maximum_score);
         } else {
-            assert!(reported_tag_count < report_threashold && current_score < 0);
-            return cmp::min(current_score - reported_tag_count + report_threashold, 0);
+            assert!(reported_tag_count < report_threashold && current_score < 0.0);
+            return (current_score - (reported_tag_count - report_threashold) as f32).min(0.0);
         }
     }
 
@@ -334,6 +341,7 @@ impl AccountabilityServer {
                 sender.report_count[0],
                 self.params.maximum_score,
                 self.params.report_threashold,
+                sender.b_param,
             );
 
             // Shift all values to the left
@@ -388,7 +396,7 @@ mod tests {
         let mut rng = OsRng;
         let mut server = AccountabilityServer::new(
             AccServerParams {
-                maximum_score: 1000,
+                maximum_score: 1000.0,
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
@@ -451,83 +459,89 @@ mod tests {
 
     #[test]
     fn update_score_test() {
-        let current_score = 100;
+        let current_score = 100.0;
         let reported_tag_count = 10;
-        let maximum_score = 100;
+        let maximum_score = 100.0;
         let score_threashold = 10;
         let new_score = AccountabilityServer::update_score(
             current_score,
             reported_tag_count,
             maximum_score,
             score_threashold,
+            1.0,
         );
         // current - 10 + 10 = 100
-        assert_eq!(new_score, 100);
+        assert_eq!(new_score, 100.0);
 
-        let current_score = 100;
+        let current_score = 100.0;
         let reported_tag_count = 11;
-        let maximum_score = 100;
+        let maximum_score = 100.0;
         let score_threashold = 10;
         let new_score = AccountabilityServer::update_score(
             current_score,
             reported_tag_count,
             maximum_score,
             score_threashold,
+            1.0,
         );
         // current - 11 + 10 = 99
-        assert_eq!(new_score, 99);
+        assert_eq!(new_score, 99.0);
 
-        let current_score = -10;
+        let current_score = -10.0;
         let reported_tag_count = 20;
-        let maximum_score = 100;
+        let maximum_score = 100.0;
         let score_threashold = 10;
         let new_score = AccountabilityServer::update_score(
             current_score,
             reported_tag_count,
             maximum_score,
             score_threashold,
+            1.0,
         );
         // current - 20 + 10 = -20
-        assert_eq!(new_score, -20);
+        assert_eq!(new_score, -20.0);
 
-        let current_score = 100;
+        let current_score = 100.0;
         let reported_tag_count = 9;
-        let maximum_score = 100;
+        let maximum_score = 100.0;
         let score_threashold = 10;
         let new_score = AccountabilityServer::update_score(
             current_score,
             reported_tag_count,
             maximum_score,
             score_threashold,
+            1.0,
         );
         // Reported tags do not reach threshold and score cannot grow
-        assert_eq!(new_score, 100);
+        assert_eq!(new_score, 100.0);
 
-        let current_score = 90;
+        let current_score = 90.0;
         let reported_tag_count = 9;
-        let maximum_score = 100;
+        let maximum_score = 100.0;
         let score_threashold = 10;
         let new_score = AccountabilityServer::update_score(
             current_score,
             reported_tag_count,
             maximum_score,
             score_threashold,
+            1.0,
         );
         // Reported tags do not reach threshold and score can grow
-        assert_eq!(new_score, 91);
+        assert_eq!(new_score, 91.0);
 
-        let current_score = -10;
+        let current_score = -10.0;
         let reported_tag_count = 9;
-        let maximum_score = 100;
+        let maximum_score = 100.0;
         let score_threashold = 10;
         let new_score = AccountabilityServer::update_score(
             current_score,
             reported_tag_count,
             maximum_score,
             score_threashold,
+            1.0,
         );
         // Reported tags do not reach threshold and score can grow
-        assert_eq!(new_score, -9);
+        assert_eq!(new_score, -9.0);
     }
 
     #[test]
@@ -535,7 +549,7 @@ mod tests {
         let mut rng = OsRng;
         let mut accsvr = AccountabilityServer::new(
             AccServerParams {
-                maximum_score: 100,
+                maximum_score: 100.0,
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
@@ -586,7 +600,7 @@ mod tests {
 
         let mut acc_svr = AccountabilityServer::new_with_time_provider(
             AccServerParams {
-                maximum_score: 100,
+                maximum_score: 100.0,
                 report_threashold: 10,
                 epoch_duration: 24,
                 tag_duration: 2,
@@ -654,77 +668,77 @@ mod tests {
     #[test]
     fn compute_score_category_test()
     {
-        let score = compute_score(0, 100);
+        let score = compute_score(0.0, 100.0);
         assert_eq!(score, 0);
 
-        let score = compute_score(19, 100);
+        let score = compute_score(19.0, 100.0);
         assert_eq!(score, 0);
 
-        let score = compute_score(20, 100);
+        let score = compute_score(20.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = compute_score(39, 100);
+        let score = compute_score(39.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = compute_score(40, 100);
+        let score = compute_score(40.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = compute_score(59, 100);
+        let score = compute_score(59.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = compute_score(60, 100);
+        let score = compute_score(60.0, 100.0);
         assert_eq!(score, 3);
 
-        let score = compute_score(79, 100);
+        let score = compute_score(79.0, 100.0);
         assert_eq!(score, 3);
 
-        let score = compute_score(80, 100);
+        let score = compute_score(80.0, 100.0);
         assert_eq!(score, 4);
 
-        let score = compute_score(99, 100);
+        let score = compute_score(99.0, 100.0);
         assert_eq!(score, 4);
 
-        let score = compute_score(100, 100);
+        let score = compute_score(100.0, 100.0);
         assert_eq!(score, 4);
 
-        let score = compute_score(-10, 100);
+        let score = compute_score(-10.0, 100.0);
         assert_eq!(score, 0);
     }
 
     #[test]
     fn custom_score_function_test() {
         let params = AccServerParams {
-            maximum_score: 100,
+            maximum_score: 100.0,
             report_threashold: 10,
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: Some(|score, _| {
-                if score < 0 {
+                if score < 0.0 {
                     return 0;
                 }
-                if score < 50 {
+                if score < 50.0 {
                     return 1;
                 }
-                if score < 100 {
+                if score < 100.0 {
                     return 2;
                 }
                 return 3;
             }),
         };
 
-        let score = params.compute_score.unwrap()(0, 100);
+        let score = params.compute_score.unwrap()(0.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = params.compute_score.unwrap()(49, 100);
+        let score = params.compute_score.unwrap()(49.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = params.compute_score.unwrap()(50, 100);
+        let score = params.compute_score.unwrap()(50.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = params.compute_score.unwrap()(99, 100);
+        let score = params.compute_score.unwrap()(99.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = params.compute_score.unwrap()(100, 100);
+        let score = params.compute_score.unwrap()(100.0, 100.0);
         assert_eq!(score, 3);
     }
 }

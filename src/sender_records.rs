@@ -14,7 +14,8 @@ pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
     pub epk: RistrettoPoint,
-    pub score: i32,
+    pub score: f32,
+    pub b_param: f32,
     pub report_count: Vec<i32>,
     pub reported_tags: HashMap<Vec<u8>, Tag>,
     pub tokens: Vec<Token>,
@@ -26,7 +27,7 @@ pub(crate) struct SenderRecords {
 }
 
 impl SenderRecord {
-    pub fn new<R>(handle: &str, num_epochs: usize, rng: &mut R) -> SenderRecord
+    pub fn new<R>(handle: &str, num_epochs: usize, initial_score: f32, rng: &mut R) -> SenderRecord
     where
         R: RngCore + CryptoRng,
     {
@@ -38,7 +39,8 @@ impl SenderRecord {
             id: sender_id,
             handles: vec![handle.to_string()],
             epk: epk,
-            score: 100,
+            score: initial_score,
+            b_param: 1.0,
             report_count: vec![0; num_epochs + 1],
             reported_tags: HashMap::new(),
             tokens: Vec::new(),
@@ -106,13 +108,13 @@ mod tests {
     #[test]
     fn test_insert() {
         let mut rng = OsRng;
-        let sender = SenderRecord::new("sender1", 2, &mut rng);
+        let sender = SenderRecord::new("sender1", 2, 100.0, &mut rng);
         let id1 = sender.id.clone();
         let mut sr = SenderRecords::new();
         sr.set_sender(sender);
         assert_eq!(sr.records.len(), 1);
 
-        let sender = SenderRecord::new("sender2", 2, &mut rng);
+        let sender = SenderRecord::new("sender2", 2, 100.0, &mut rng);
         let id2 = sender.id.clone();
         sr.set_sender(sender);
         assert_eq!(sr.records.len(), 2);
@@ -133,7 +135,7 @@ mod tests {
     #[test]
     fn test_insert_with_handles() {
         let mut rng = OsRng;
-        let mut sender = SenderRecord::new("sender3", 2, &mut rng);
+        let mut sender = SenderRecord::new("sender3", 2, 100.0, &mut rng);
         sender.handles.push("sender4".to_string());
         sender.handles.push("sender5".to_string());
         let id1 = sender.id.clone();
