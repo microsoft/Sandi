@@ -166,11 +166,11 @@ pub fn verifying_key_from_vec(vk: &Vec<u8>) -> Result<VerifyingKey, String> {
     Ok(verifying_key)
 }
 
-pub fn concat_id_and_scalars(id: &SenderId, s1: &Scalar, s2: &Scalar) -> Vec<u8> {
+pub fn concat_id_and_scalars(id: &SenderId, n: &[u8; 8], s: &Scalar) -> Vec<u8> {
     let mut result = Vec::new();
     result.extend_from_slice(id);
-    result.extend_from_slice(s1.as_bytes());
-    result.extend_from_slice(s2.as_bytes());
+    result.extend_from_slice(n);
+    result.extend_from_slice(s.as_bytes());
     // Add space for IV
     let iv_size = cipher_block_size();
     result.resize(result.len() + iv_size, 0);
@@ -250,14 +250,14 @@ mod tests {
 
     #[test]
     fn test_concat_id() {
-        let id = [0u8; 16];
-        let s1 = Scalar::from_bytes_mod_order([1u8; 32]);
-        let s2 = Scalar::from_bytes_mod_order([2u8; 32]);
-        let result = concat_id_and_scalars(&id, &s1, &s2);
+        let id = SenderId::default();
+        let n = [1u8; 8];
+        let s = Scalar::from_bytes_mod_order([2u8; 32]);
+        let result = concat_id_and_scalars(&id, &n, &s);
         assert_eq!(result.len(), 96);
         assert_eq!(result[..16], id);
-        assert_eq!(result[16..48].to_vec(), s1.as_bytes().to_vec());
-        assert_eq!(result[48..80].to_vec(), s2.as_bytes().to_vec());
+        assert_eq!(result[16..48].to_vec(), n.to_vec());
+        assert_eq!(result[48..80].to_vec(), s.as_bytes().to_vec());
         assert!(result.len() % cipher_block_size() == 0);
     }
 }

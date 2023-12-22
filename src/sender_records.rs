@@ -5,7 +5,7 @@ use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand::{CryptoRng, RngCore};
 
 // Alias for a sender ID
-pub type SenderId = [u8; 16];
+pub type SenderId = [u8; 8];
 // Alias for a token
 pub type Token = (Scalar, RistrettoPoint);
 
@@ -31,14 +31,14 @@ impl SenderRecord {
     where
         R: RngCore + CryptoRng,
     {
-        let mut sender_id = [0u8; 16];
+        let mut sender_id = SenderId::default();
         rng.fill_bytes(&mut sender_id);
         let epk = G();
 
         SenderRecord {
             id: sender_id,
             handles: vec![handle.to_string()],
-            epk: epk,
+            epk,
             score: initial_score,
             b_param: 1.0,
             report_count: vec![0; num_epochs + 1],

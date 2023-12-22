@@ -1,5 +1,5 @@
 use crate::nizqdleq;
-use crate::sender_records::{SenderRecord, SenderRecords};
+use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
 use crate::tag::Tag;
 use crate::utils::{
     basepoint_order, cipher_block_size, concat_id_and_scalars, decrypt, encrypt, get_start_of_day,
@@ -163,11 +163,12 @@ impl AccountabilityServer {
         let x_big = s * sender.epk;
 
         // n, r
-        let n = random_scalar(rng);
+        let mut n = [0u8; 8];
+        rng.fill_bytes(&mut n);
         let r = random_scalar(rng);
 
         // Q
-        let hashed_n = RistrettoPoint::hash_from_bytes::<Sha512>(n.as_bytes());
+        let hashed_n = RistrettoPoint::hash_from_bytes::<Sha512>(&n);
         let q_big = r * hashed_n;
 
         // Then, we encrypt the sender ID, n and r
@@ -257,14 +258,14 @@ impl AccountabilityServer {
 
         // Sender Id + n + r
         let scalar_length = Scalar::ONE.as_bytes().len();
-        if tag.enc_sender_id.len() != 16 + 2 * scalar_length + 16 {
+        if tag.enc_sender_id.len() != 8 + scalar_length + 8 {
             return Err(AccSvrError("Invalid sender id".to_string()));
         }
 
         let mut decrypted_sender_id = tag.enc_sender_id.clone();
         decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
-        let mut sender_id = [0u8; 16];
-        sender_id.copy_from_slice(&decrypted_sender_id[..16]);
+        let mut sender_id = SenderId::default();
+        sender_id.copy_from_slice(&decrypted_sender_id[..8]);
         let mut n_buff = [0u8; 32];
         n_buff.copy_from_slice(&decrypted_sender_id[16..48]);
         let n = Scalar::from_canonical_bytes(n_buff).unwrap();
