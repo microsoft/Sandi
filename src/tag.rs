@@ -1,4 +1,4 @@
-use crate::serialization::{FixedBuffer32, FixedBuffer64, FixedBuffer96, TagArgs};
+use crate::serialization::{FixedBuffer32, FixedBuffer48, FixedBuffer64, TagArgs};
 use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use flatbuffers::FlatBufferBuilder;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ impl Tag {
         let mut vec = Vec::new();
         let mut builder = FlatBufferBuilder::new();
         let commitment = &FixedBuffer32(self.commitment.clone().try_into().unwrap());
-        let enc_sender_id = &FixedBuffer96(self.enc_sender_id.clone().try_into().unwrap());
+        let enc_sender_id = &FixedBuffer48(self.enc_sender_id.clone().try_into().unwrap());
         let signature = &FixedBuffer64(self.signature.clone().try_into().unwrap());
         let q_big = &FixedBuffer32(self.q_big.compress().to_bytes());
         let g_prime = &FixedBuffer32(self.g_prime.compress().to_bytes());
@@ -102,7 +102,7 @@ mod tests {
             commitment: vec![0; 32],
             exp_timestamp: 0,
             score: 0,
-            enc_sender_id: vec![0; 96],
+            enc_sender_id: vec![0; 48],
             q_big: random_point(&mut rng),
             g_prime: random_point(&mut rng),
             x_big: random_point(&mut rng),

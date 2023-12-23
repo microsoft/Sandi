@@ -113,6 +113,6 @@ mod tests {
         let tag = tag_opt.unwrap();
 
         let binary: heapless::Vec<u8, 450> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 426);
+        assert_eq!(binary.len(), 378);
     }
 }

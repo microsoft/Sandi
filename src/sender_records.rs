@@ -7,7 +7,7 @@ use rand::{CryptoRng, RngCore};
 // Alias for a sender ID
 pub type SenderId = [u8; 8];
 // Alias for a token
-pub type Token = (Scalar, RistrettoPoint);
+pub type Token = ([u8; 8], RistrettoPoint);
 
 #[derive(Clone)]
 pub(crate) struct SenderRecord {

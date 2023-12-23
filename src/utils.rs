@@ -47,9 +47,7 @@ where
     RistrettoPoint::hash_from_bytes::<sha2::Sha512>(&bytes)
 }
 
-pub fn encrypt<R>(key: &[u8], message: &mut [u8], rng: &mut R)
-where
-    R: RngCore + CryptoRng,
+pub fn encrypt(key: &[u8], message: &mut [u8])
 {
     if key.len() != Aes256::key_size() {
         panic!("Key size is not {} bytes", Aes256::key_size());
@@ -72,18 +70,14 @@ where
     // Get a message slice that does not include the last block
     let enc_message = &mut message[..msg_length];
 
-    // Fill last block with random data, this will be the IV
-    let mut iv = [0u8; 16];
-    rng.fill_bytes(&mut iv);
+    // IV will always be zero
+    let iv = [0u8; 16];
 
     let mut cipher = Aes256CbcEnc::new_from_slices(key, &iv).unwrap();
 
     for block in enc_message.chunks_mut(Aes256::block_size()) {
         cipher.encrypt_block_mut(GenericArray::from_mut_slice(block));
     }
-
-    // Copy the IV into the last block
-    message[msg_length..].copy_from_slice(&iv);
 }
 
 pub fn decrypt(key: &[u8], ciphertext: &mut [u8]) {
@@ -103,12 +97,10 @@ pub fn decrypt(key: &[u8], ciphertext: &mut [u8]) {
         );
     }
 
-    let iv = &ciphertext[ciphertext.len() - Aes256::block_size()..];
-    let mut cipher = Aes256CbcDec::new_from_slices(key, iv).unwrap();
+    let iv = [ 0u8; 16 ];
+    let mut cipher = Aes256CbcDec::new_from_slices(key, &iv).unwrap();
 
-    let enc_message_len = ciphertext.len() - Aes256::block_size();
-    let enc_message = &mut ciphertext[..enc_message_len];
-    for block in enc_message.chunks_mut(Aes256::block_size()) {
+    for block in ciphertext.chunks_mut(Aes256::block_size()) {
         cipher.decrypt_block_mut(GenericArray::from_mut_slice(block));
     }
 }
@@ -166,14 +158,12 @@ pub fn verifying_key_from_vec(vk: &Vec<u8>) -> Result<VerifyingKey, String> {
     Ok(verifying_key)
 }
 
-pub fn concat_id_and_scalars(id: &SenderId, n: &[u8; 8], s: &Scalar) -> Vec<u8> {
+pub fn concat_id_and_scalars(id: &SenderId, n: &[u8; 8], r: &Scalar) -> Vec<u8> {
+    // Order will be: r | n | ID
     let mut result = Vec::new();
-    result.extend_from_slice(id);
+    result.extend_from_slice(r.as_bytes());
     result.extend_from_slice(n);
-    result.extend_from_slice(s.as_bytes());
-    // Add space for IV
-    let iv_size = cipher_block_size();
-    result.resize(result.len() + iv_size, 0);
+    result.extend_from_slice(id);
     result
 }
 
@@ -213,8 +203,7 @@ mod tests {
         // Copy the clear text message into message2
         message2.copy_from_slice(&message);
 
-        let mut rng = OsRng;
-        encrypt(&key, message.as_mut(), &mut rng);
+        encrypt(&key, message.as_mut());
         // message is now encrypted
         assert_ne!(message, message2);
 
@@ -238,8 +227,7 @@ mod tests {
         // Copy the clear text message into message2
         message2.copy_from_slice(&message);
 
-        let mut rng = OsRng;
-        encrypt(&key, message.as_mut(), &mut rng);
+        encrypt(&key, message.as_mut());
         // message is now encrypted. Compare only the first 48 bytes
         assert_ne!(message[..48], message2[..48]);
 
@@ -252,12 +240,15 @@ mod tests {
     fn test_concat_id() {
         let id = SenderId::default();
         let n = [1u8; 8];
-        let s = Scalar::from_bytes_mod_order([2u8; 32]);
-        let result = concat_id_and_scalars(&id, &n, &s);
-        assert_eq!(result.len(), 96);
-        assert_eq!(result[..16], id);
-        assert_eq!(result[16..48].to_vec(), n.to_vec());
-        assert_eq!(result[48..80].to_vec(), s.as_bytes().to_vec());
+        let r = Scalar::from_bytes_mod_order([2u8; 32]);
+        let result = concat_id_and_scalars(&id, &n, &r);
+        assert_eq!(result.len(), 48);
+        // r
+        assert_eq!(result[..32].to_vec(), r.as_bytes().to_vec());
+        // n
+        assert_eq!(result[32..40], n);
+        // id
+        assert_eq!(result[40..48], id);
         assert!(result.len() % cipher_block_size() == 0);
     }
 }

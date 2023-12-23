@@ -145,14 +145,6 @@ impl AccountabilityServer {
         }
         let sender = sender_opt.unwrap();
 
-        // Check sender id size
-        if sender.id.len() % cipher_block_size() != 0 {
-            return Err(AccSvrError(format!(
-                "Sender id size is not a multiple of {} bytes",
-                cipher_block_size()
-            )));
-        }
-
         // s is random scalar
         let s = random_scalar(rng);
 
@@ -173,7 +165,7 @@ impl AccountabilityServer {
 
         // Then, we encrypt the sender ID, n and r
         let mut encrypted_sender_id = concat_id_and_scalars(&sender.id, &n, &r);
-        encrypt(&self.enc_secret_key, &mut encrypted_sender_id, rng);
+        encrypt(&self.enc_secret_key, &mut encrypted_sender_id);
 
         // Get expiration date for the tag
         // Compute as epoch duration in hours * tag duration in epochs
@@ -264,13 +256,13 @@ impl AccountabilityServer {
 
         let mut decrypted_sender_id = tag.enc_sender_id.clone();
         decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
+        // Order is: r | n | ID
         let mut sender_id = SenderId::default();
-        sender_id.copy_from_slice(&decrypted_sender_id[..8]);
-        let mut n_buff = [0u8; 32];
-        n_buff.copy_from_slice(&decrypted_sender_id[16..48]);
-        let n = Scalar::from_canonical_bytes(n_buff).unwrap();
+        sender_id.copy_from_slice(&decrypted_sender_id[40..48]);
+        let mut n = [0u8; 8];
+        n.copy_from_slice(&decrypted_sender_id[32..40]);
         let mut r_buff = [0u8; 32];
-        r_buff.copy_from_slice(&decrypted_sender_id[48..80]);
+        r_buff.copy_from_slice(&decrypted_sender_id[0..32]);
         let r = Scalar::from_canonical_bytes(r_buff).unwrap();
         let inv_r = r.invert();
 
@@ -572,7 +564,7 @@ mod tests {
         let tag = tag_res.unwrap();
 
         let binary: heapless::Vec<u8, 350> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 297);
+        assert_eq!(binary.len(), 249);
     }
 
     #[test]

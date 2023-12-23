@@ -7,10 +7,10 @@ struct FixedBuffer32 {
     data: [byte: 32];
 }
 
-struct FixedBuffer64 {
-    data: [byte: 64];
+struct FixedBuffer48 {
+    data: [byte: 48];
 }
 
-struct FixedBuffer96 {
-    data: [byte: 96];
+struct FixedBuffer64 {
+    data: [byte: 64];
 }

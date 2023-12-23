@@ -3,7 +3,7 @@ use flatbuffers::FlatBufferBuilder;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    serialization::{FixedBuffer32, FixedBuffer64, FixedBuffer96},
+    serialization::{FixedBuffer32, FixedBuffer48, FixedBuffer64},
     tag::Tag,
 };
 
@@ -19,7 +19,7 @@ impl SenderTag {
     pub fn to_vec(&self) -> Vec<u8> {
         let mut builder = FlatBufferBuilder::new();
         let commitment = &FixedBuffer32(self.tag.commitment.clone().try_into().unwrap());
-        let enc_sender_id = &FixedBuffer96(self.tag.enc_sender_id.clone().try_into().unwrap());
+        let enc_sender_id = &FixedBuffer48(self.tag.enc_sender_id.clone().try_into().unwrap());
         let signature = &FixedBuffer64(self.tag.signature.clone().try_into().unwrap());
         let q_big = &FixedBuffer32(self.tag.q_big.compress().to_bytes());
         let g_prime = &FixedBuffer32(self.tag.g_prime.compress().to_bytes());
@@ -118,7 +118,7 @@ mod tests {
             commitment: vec![0; 32],
             exp_timestamp: 0,
             score: 0,
-            enc_sender_id: vec![0; 96],
+            enc_sender_id: vec![0; 48],
             q_big: random_point(&mut rng),
             g_prime: random_point(&mut rng),
             x_big: random_point(&mut rng),
@@ -141,7 +141,7 @@ mod tests {
         assert_eq!(deserialized_tag.tag.commitment, vec![0; 32]);
         assert_eq!(deserialized_tag.tag.exp_timestamp, 0);
         assert_eq!(deserialized_tag.tag.score, 0);
-        assert_eq!(deserialized_tag.tag.enc_sender_id, vec![0; 96]);
+        assert_eq!(deserialized_tag.tag.enc_sender_id, vec![0; 48]);
         assert_eq!(deserialized_tag.tag.q_big, full_tag.tag.q_big);
         assert_eq!(deserialized_tag.tag.g_prime, full_tag.tag.g_prime);
         assert_eq!(deserialized_tag.tag.x_big, full_tag.tag.x_big);
