@@ -95,7 +95,7 @@ mod tests {
 
         // Report tag
         let report_result = accsvr.report(tag.tag, tag.proof, tag.r_big);
-        assert!(report_result.is_ok());
+        assert!(report_result.is_ok(), "{:?}", report_result.unwrap_err());
         let sender_opt = accsvr.sender_records.get_sender_by_handle("sender1");
         assert!(sender_opt.is_some());
         // Sender should have one report now

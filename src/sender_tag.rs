@@ -133,7 +133,7 @@ mod tests {
         };
 
         let serialized_tag = full_tag.to_vec();
-        assert_eq!(serialized_tag.len(), 452);
+        assert_eq!(serialized_tag.len(), 404);
 
         let deserialized_tag = SenderTag::from_vec(&serialized_tag);
         assert!(deserialized_tag.is_ok());

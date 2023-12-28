@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{tag::Tag, utils::G};
-use curve25519_dalek::{RistrettoPoint, Scalar};
+use curve25519_dalek::RistrettoPoint;
 use rand::{CryptoRng, RngCore};
 
 // Alias for a sender ID

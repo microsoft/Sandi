@@ -65,17 +65,12 @@ pub fn encrypt(key: &[u8], message: &mut [u8])
         );
     }
 
-    let msg_length = message.len() - Aes256::block_size();
-
-    // Get a message slice that does not include the last block
-    let enc_message = &mut message[..msg_length];
-
     // IV will always be zero
     let iv = [0u8; 16];
 
     let mut cipher = Aes256CbcEnc::new_from_slices(key, &iv).unwrap();
 
-    for block in enc_message.chunks_mut(Aes256::block_size()) {
+    for block in message.chunks_mut(Aes256::block_size()) {
         cipher.encrypt_block_mut(GenericArray::from_mut_slice(block));
     }
 }
@@ -219,21 +214,21 @@ mod tests {
         let mut message = [
             0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
             0x0f, 0x00, 0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-            0x0f, 0x00, 0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-            0x0f, 0x00, 0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-            0x0f, 0x00, 0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06,
+            0x0f, 0x10, 0x11u8, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+            0x1f, 0x20, 0x21u8, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c,
+            0x2f, 0x30, 0x31u8, 0x32, 0x33, 0x34, 0x35, 0x36,
         ];
         let mut message2 = [0x0u8; 64];
         // Copy the clear text message into message2
         message2.copy_from_slice(&message);
 
         encrypt(&key, message.as_mut());
-        // message is now encrypted. Compare only the first 48 bytes
-        assert_ne!(message[..48], message2[..48]);
+        // message is now encrypted.
+        assert_ne!(message, message2);
 
         decrypt(&key, message.as_mut());
-        // message is now decrypted. Compare only the first 48 bytes
-        assert_eq!(message[..48], message2[..48]);
+        // message is now decrypted.
+        assert_eq!(message, message2);
     }
 
     #[test]
@@ -250,5 +245,24 @@ mod tests {
         // id
         assert_eq!(result[40..48], id);
         assert!(result.len() % cipher_block_size() == 0);
+    }
+
+    #[test]
+    fn test_concat_id_encrypted() {
+        let id = SenderId::default();
+        let n = [1u8; 8];
+        let r = Scalar::from_bytes_mod_order([2u8; 32]);
+        let result = concat_id_and_scalars(&id, &n, &r);
+        assert_eq!(result.len(), 48);
+        // id
+        assert_eq!(result[40..48], id);
+
+        let key = [0x0Au8; 32];
+        let mut result_enc = result.clone();
+        encrypt(&key, result_enc.as_mut());
+        assert_ne!(result_enc, result);
+
+        decrypt(&key, result_enc.as_mut());
+        assert_eq!(result_enc, result);
     }
 }
