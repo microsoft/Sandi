@@ -62,6 +62,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
+                noise_distribution: None,
             },
             &mut rng,
         );
@@ -102,7 +103,7 @@ mod tests {
         assert_eq!(sender_opt.unwrap().reported_tags.len(), 1);
 
         // Update scores
-        accsvr.update_scores();
+        accsvr.update_scores(&mut rng);
 
         // Sender should have one token now
         let sender_opt = accsvr.sender_records.get_sender_by_handle("sender1");

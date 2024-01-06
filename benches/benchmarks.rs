@@ -18,6 +18,7 @@ fn get_tag_bench(c: &mut Criterion) {
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
+            noise_distribution: None,
         },
         &mut rng,
     );
@@ -44,6 +45,7 @@ fn issue_tag_bench(c: &mut Criterion) {
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
+            noise_distribution: None,
         },
         &mut rng,
     );
@@ -72,6 +74,7 @@ fn verify_tag_bench(c: &mut Criterion) {
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
+            noise_distribution: None,
         },
         &mut rng,
     );
@@ -110,6 +113,7 @@ fn report_tag_bench(c: &mut Criterion) {
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
+            noise_distribution: None,
         },
         &mut rng,
     );
@@ -356,6 +360,7 @@ fn end_to_end_bench(c: &mut Criterion) {
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
+            noise_distribution: None,
         },
         &mut rng,
     );
@@ -381,7 +386,7 @@ fn end_to_end_bench(c: &mut Criterion) {
                 &verifying_key,
             );
             let _ = server.report(tag.tag, tag.proof, tag.r_big);
-            server.update_scores();
+            server.update_scores(&mut rng);
         })
     });
 }

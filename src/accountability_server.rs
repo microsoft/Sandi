@@ -1,8 +1,9 @@
+use crate::gaussian::{Gaussian, NoiseDistribution};
 use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
 use crate::tag::Tag;
 use crate::utils::{
-    basepoint_order, cipher_block_size, concat_id_and_scalars, decrypt, encrypt, get_start_of_day,
+    basepoint_order, concat_id_and_scalars, decrypt, encrypt, get_start_of_day,
     random_scalar, verify_signature, SignatureVerificationError, G,
 };
 use chrono::Duration;
@@ -10,6 +11,7 @@ use curve25519_dalek::{RistrettoPoint, Scalar};
 use ed25519_dalek::{Signer, SigningKey};
 use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
+use rand_distr::Distribution;
 use sha2::Sha512;
 
 // Provides ability to manipulate time for testing purposes
@@ -36,6 +38,8 @@ pub struct AccServerParams {
     pub tag_duration: usize,
     // Optional function to compute score category
     pub compute_score: Option<fn(f32, f32) -> i8>,
+    // Optional distribution for differential privacy
+    pub noise_distribution: Option<Box<Gaussian>>,
 }
 
 // The default implementation will return the correct time
@@ -95,6 +99,12 @@ impl AccountabilityServer {
 
         let signing_key = SigningKey::generate(rng);
         let sender_records = SenderRecords::new();
+
+        // If noise distribution is provided, verify it is maxed at -1.0
+        if let Some(dist) = params.noise_distribution.as_ref() {
+            assert!(dist.max().is_some(), "Noise distribution must have a max value");
+            assert!(dist.max().unwrap() == -1.0, "Noise distribution must be maxed at -1.0");
+        }
 
         AccountabilityServer {
             enc_secret_key,
@@ -327,11 +337,20 @@ impl AccountabilityServer {
         }
     }
 
-    pub fn update_scores(&mut self) {
+    pub fn update_scores<R>(&mut self, rng: &mut R)
+    where R: RngCore + CryptoRng {
         self.sender_records.for_each(|sender| {
+            let mut report_count = sender.report_count[0] as f32;
+        
+            // Add noise if necessary
+            if let Some(dist) = self.params.noise_distribution.as_ref() {
+                let noise = dist.sample(rng);
+                report_count += noise;
+            }
+
             sender.score = AccountabilityServer::update_score(
                 sender.score,
-                sender.report_count[0],
+                report_count as i32,
                 self.params.maximum_score,
                 self.params.report_threashold,
                 sender.b_param,
@@ -394,6 +413,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
+                noise_distribution: None,
             },
             &mut rng,
         );
@@ -440,7 +460,7 @@ mod tests {
         }
 
         // Update scores
-        server.update_scores();
+        server.update_scores(&mut rng);
 
         // After updateing scores the count should be 0 again
         for sender in &server.sender_records.records {
@@ -547,6 +567,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
+                noise_distribution: None,
             },
             &mut rng,
         );
@@ -598,6 +619,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
+                noise_distribution: None,
             },
             &mut rng,
             time_provider,
@@ -717,6 +739,7 @@ mod tests {
                 }
                 return 3;
             }),
+            noise_distribution: None,
         };
 
         let score = params.compute_score.unwrap()(0.0, 100.0);
@@ -733,5 +756,64 @@ mod tests {
 
         let score = params.compute_score.unwrap()(100.0, 100.0);
         assert_eq!(score, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_noise_distribution_nomax_test() {
+        let params = AccServerParams {
+            maximum_score: 100.0,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+            compute_score: None,
+            noise_distribution: Some(Box::new(Gaussian::new(0.0, 1.0).unwrap())),
+        };
+
+        let mut rng = OsRng;
+
+        let _ = AccountabilityServer::new(
+            params,
+            &mut rng,
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_noise_distribution_maxnotminusone_test() {
+        let params = AccServerParams {
+            maximum_score: 100.0,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+            compute_score: None,
+            noise_distribution: Some(Box::new(Gaussian::new_max(0.0, 1.0, 0.0).unwrap())),
+        };
+
+        let mut rng = OsRng;
+
+        let _ = AccountabilityServer::new(
+            params,
+            &mut rng,
+        );
+    }
+
+    #[test]
+    fn valid_noise_distribution_test() {
+        let params = AccServerParams {
+            maximum_score: 100.0,
+            report_threashold: 10,
+            epoch_duration: 24,
+            tag_duration: 2,
+            compute_score: None,
+            noise_distribution: Some(Box::new(Gaussian::new_max(0.0, 1.0, -1.0).unwrap())),
+        };
+
+        let mut rng = OsRng;
+
+        let _ = AccountabilityServer::new(
+            params,
+            &mut rng,
+        );
     }
 }

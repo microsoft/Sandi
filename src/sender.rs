@@ -102,6 +102,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
+                noise_distribution: None,
             },
             &mut rng,
         );
