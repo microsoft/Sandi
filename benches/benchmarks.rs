@@ -220,7 +220,7 @@ fn serialize_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 96];
+    let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
 
 
@@ -238,7 +238,7 @@ fn serialize_tag_bench(c: &mut Criterion) {
     c.bench_function("serialize_tag", |b| {
         b.iter(|| {
             let vec = tag.to_vec();
-            assert_eq!(vec.len(), 316);
+            assert_eq!(vec.len(), 268);
         });
     });
 }
@@ -249,7 +249,7 @@ fn deserialize_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 96];
+    let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
 
     let tag = Tag {
@@ -279,7 +279,7 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 96];
+    let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
     let mut randomness = [0u8; 32];
     rng.fill_bytes(&mut randomness);
@@ -306,7 +306,7 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     c.bench_function("serialize_full_tag", |b| {
         b.iter(|| {
             let vec = sender_tag.to_vec();
-            assert_eq!(vec.len(), 452);
+            assert_eq!(vec.len(), 404);
         });
     });
 }
@@ -317,7 +317,7 @@ fn deserialize_full_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut signature);
     let mut commitment = [0u8; 32];
     rng.fill_bytes(&mut commitment);
-    let mut enc_sender_id = [0u8; 96];
+    let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
     let mut randomness = [0u8; 32];
     rng.fill_bytes(&mut randomness);
