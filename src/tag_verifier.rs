@@ -16,6 +16,7 @@ pub struct VerificationError(pub String);
 pub fn verify(
     receiver_handle: &str,
     message: &str,
+    vks: &RistrettoPoint,
     tag: &Tag,
     randomness: &Vec<u8>,
     proof: &(Scalar, Scalar),
@@ -50,8 +51,18 @@ pub fn verify(
     mac.update(message.as_bytes());
     let commitment = mac.finalize();
 
-    if commitment.into_bytes().to_vec() != tag.commitment {
-        return Err(VerificationError("Invalid commitment".to_string()));
+    if commitment.into_bytes().to_vec() != tag.commitment_hr {
+        return Err(VerificationError("Invalid receiver commitment".to_string()));
+    }
+
+    let mut mac = Hmac::<Sha256>::new_from_slice(&randomness)
+        .map_err(|_| VerificationError("Invalid randomness".to_string()))?;
+
+    mac.update(vks.compress().as_bytes());
+    let commitment = mac.finalize();
+
+    if commitment.into_bytes().to_vec() != tag.commitment_vks {
+        return Err(VerificationError("Invalid vks commitment".to_string()));
     }
 
     // Verify NIZKDLEG

@@ -141,7 +141,8 @@ impl AccountabilityServer {
 
     pub fn issue_tag<R>(
         &self,
-        commitment: &Vec<u8>,
+        commitment_hr: &Vec<u8>,
+        commitment_vks: &Vec<u8>,
         sender_handle: &str,
         rng: &mut R,
     ) -> Result<Tag, AccSvrError>
@@ -188,7 +189,7 @@ impl AccountabilityServer {
 
         // Then, we sign tag information
         let mut data_to_sign = Vec::new();
-        data_to_sign.extend_from_slice(&commitment);
+        data_to_sign.extend_from_slice(&commitment_hr);
         data_to_sign.extend_from_slice(expiration_date.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(score.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(&encrypted_sender_id);
@@ -202,7 +203,8 @@ impl AccountabilityServer {
 
         // Finally, we create the tag
         let tag = Tag {
-            commitment: commitment.clone(),
+            commitment_hr: commitment_hr.clone(),
+            commitment_vks: commitment_vks.clone(),
             exp_timestamp: expiration_date,
             score: self.compute_score(&sender),
             enc_sender_id: encrypted_sender_id.to_vec(),

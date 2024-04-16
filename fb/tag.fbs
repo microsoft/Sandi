@@ -6,7 +6,8 @@ include "common.fbs";
 namespace serialization;
 
 table Tag {
-    commitment: FixedBuffer32 (required);
+    commitment_hr: FixedBuffer32 (required);
+    commitment_vks: FixedBuffer32 (required);
     expiration: int64;
     score: int8;
     enc_sender_id: FixedBuffer48 (required);

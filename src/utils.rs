@@ -112,7 +112,8 @@ pub fn verify_signature(
 ) -> Result<(), SignatureVerificationError> {
     // Verify if signature is valid
     let mut data_to_sign = Vec::new();
-    data_to_sign.extend_from_slice(&tag.commitment);
+    data_to_sign.extend_from_slice(&tag.commitment_hr);
+    data_to_sign.extend_from_slice(&tag.commitment_vks);
     data_to_sign.extend_from_slice(tag.exp_timestamp.to_be_bytes().as_slice());
     data_to_sign.extend_from_slice(tag.score.to_be_bytes().as_slice());
     data_to_sign.extend_from_slice(&tag.enc_sender_id);

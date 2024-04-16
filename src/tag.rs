@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Tag {
-    pub commitment: Vec<u8>,
+    pub commitment_hr: Vec<u8>,
+    pub commitment_vks: Vec<u8>,
     pub exp_timestamp: i64,
     pub score: i8,
     pub enc_sender_id: Vec<u8>,
@@ -25,14 +26,16 @@ impl Tag {
     pub fn to_vec(&self) -> Vec<u8> {
         let mut vec = Vec::new();
         let mut builder = FlatBufferBuilder::new();
-        let commitment = &FixedBuffer32(self.commitment.clone().try_into().unwrap());
+        let commitment_hr = &FixedBuffer32(self.commitment_hr.clone().try_into().unwrap());
+        let commitment_vks = &FixedBuffer32(self.commitment_vks.clone().try_into().unwrap());
         let enc_sender_id = &FixedBuffer48(self.enc_sender_id.clone().try_into().unwrap());
         let signature = &FixedBuffer64(self.signature.clone().try_into().unwrap());
         let q_big = &FixedBuffer32(self.q_big.compress().to_bytes());
         let g_prime = &FixedBuffer32(self.g_prime.compress().to_bytes());
         let x_big = &FixedBuffer32(self.x_big.compress().to_bytes());
         let args = TagArgs {
-            commitment: Some(commitment),
+            commitment_hr: Some(commitment_hr),
+            commitment_vks: Some(commitment_vks),
             expiration: self.exp_timestamp,
             score: self.score,
             enc_sender_id: Some(enc_sender_id),
@@ -55,7 +58,8 @@ impl Tag {
         }
 
         let tag = tag.unwrap();
-        let commitment = tag.commitment().0.to_vec();
+        let commitment_hr = tag.commitment_hr().0.to_vec();
+        let commitment_vks = tag.commitment_vks().0.to_vec();
         let exp_timestamp = tag.expiration();
         let score = tag.score();
         let enc_sender_id = tag.enc_sender_id().0.to_vec();
@@ -74,7 +78,8 @@ impl Tag {
         let signature = tag.signature().0.to_vec();
 
         Ok(Tag {
-            commitment,
+            commitment_hr,
+            commitment_vks,
             exp_timestamp,
             score,
             enc_sender_id,
@@ -99,7 +104,8 @@ mod tests {
         rng.fill_bytes(&mut signature);
 
         let mut tag = Tag {
-            commitment: vec![0; 32],
+            commitment_hr: vec![0; 32],
+            commitment_vks: vec![0; 32],
             exp_timestamp: 0,
             score: 0,
             enc_sender_id: vec![0; 48],

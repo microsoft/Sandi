@@ -1,3 +1,4 @@
+use curve25519_dalek::ristretto::CompressedRistretto;
 use sender_tag::SenderTag;
 use tag_verifier::VerificationError;
 
@@ -16,15 +17,22 @@ pub mod gaussian;
 pub fn verify_tag(
     receiver_handle: &str,
     message: &str,
+    vks: &Vec<u8>,
     verifying_key: &Vec<u8>,
     tag: &Vec<u8>,
 ) -> Result<i8, String> {
     let full_tag = SenderTag::from_vec(tag);
+    let vks_point = CompressedRistretto::from_slice(vks)
+        .unwrap()
+        .decompress()
+        .ok_or("Failed to decompress vks")?;
+
     match full_tag {
         Ok(full_tag) => {
             let verif_result = tag_verifier::verify(
                 receiver_handle,
                 message,
+                &vks_point,
                 &full_tag.tag,
                 &full_tag.randomness,
                 &full_tag.proof,
@@ -78,9 +86,11 @@ mod tests {
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
+        let vks = sender.get_verifying_key();
         let verif_result = tag_verifier::verify(
             &receiver_handle,
             &msg,
+            vks,
             &tag.tag,
             &tag.randomness,
             &tag.proof,

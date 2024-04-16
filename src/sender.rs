@@ -14,6 +14,8 @@ pub struct Sender {
     pub handle: String,
     pub epk: RistrettoPoint,
     esk: Scalar,
+    vks: RistrettoPoint,
+    sks: Scalar,
 }
 
 #[derive(Debug)]
@@ -28,12 +30,21 @@ impl Sender {
         rng.fill_bytes(&mut sk);
         let esk = Scalar::from_bytes_mod_order(sk);
         let epk = G() * esk;
+        rng.fill_bytes(&mut sk);
+        let sks = Scalar::from_bytes_mod_order(sk);
+        let vks = G() * sks;
 
         Sender {
             handle: handle.to_owned(),
             esk,
             epk,
+            sks,
+            vks,
         }
+    }
+
+    pub fn get_verifying_key(&self) -> &RistrettoPoint {
+        &self.vks
     }
 
     pub fn get_tag<R>(
@@ -51,10 +62,14 @@ impl Sender {
         let mut mac = Hmac::<Sha256>::new_from_slice(&randomness).unwrap();
         mac.update(receiver_handle.as_bytes());
         mac.update(msg.as_bytes());
-        let commitment = mac.finalize();
+        let commitment_hr = mac.finalize();
+
+        let mut mac = Hmac::<Sha256>::new_from_slice(&randomness).unwrap();
+        mac.update(self.vks.compress().as_bytes());
+        let commitment_vks = mac.finalize();
 
         let tag_res =
-            accountability_server.issue_tag(&commitment.into_bytes().to_vec(), &self.handle, rng);
+            accountability_server.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &self.handle, rng);
 
         match tag_res {
             Ok(tag) => {

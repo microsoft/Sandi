@@ -18,7 +18,8 @@ pub struct SenderTag {
 impl SenderTag {
     pub fn to_vec(&self) -> Vec<u8> {
         let mut builder = FlatBufferBuilder::new();
-        let commitment = &FixedBuffer32(self.tag.commitment.clone().try_into().unwrap());
+        let commitment_hr = &FixedBuffer32(self.tag.commitment_hr.clone().try_into().unwrap());
+        let commitment_vks = &FixedBuffer32(self.tag.commitment_vks.clone().try_into().unwrap());
         let enc_sender_id = &FixedBuffer48(self.tag.enc_sender_id.clone().try_into().unwrap());
         let signature = &FixedBuffer64(self.tag.signature.clone().try_into().unwrap());
         let q_big = &FixedBuffer32(self.tag.q_big.compress().to_bytes());
@@ -30,7 +31,8 @@ impl SenderTag {
         let r_big = &FixedBuffer32(self.r_big.compress().to_bytes());
 
         let args = crate::serialization::FullTagArgs {
-            commitment: Some(commitment),
+            commitment_hr: Some(commitment_hr),
+            commitment_vks: Some(commitment_vks),
             expiration: self.tag.exp_timestamp,
             score: self.tag.score,
             enc_sender_id: Some(enc_sender_id),
@@ -59,7 +61,8 @@ impl SenderTag {
         }
 
         let full_tag = full_tag.unwrap();
-        let commitment = full_tag.commitment().0.to_vec();
+        let commitment_hr = full_tag.commitment_hr().0.to_vec();
+        let commitment_vks = full_tag.commitment_vks().0.to_vec();
         let exp_timestamp = full_tag.expiration();
         let score = full_tag.score();
         let enc_sender_id = full_tag.enc_sender_id().0.to_vec();
@@ -85,7 +88,8 @@ impl SenderTag {
             .ok_or("Failed to decompress r_big")?;
 
         let tag = Tag {
-            commitment,
+            commitment_hr,
+            commitment_vks,
             exp_timestamp,
             score,
             enc_sender_id,
@@ -115,7 +119,8 @@ mod tests {
     fn full_tag_serialization_test() {
         let mut rng = OsRng;
         let tag = Tag {
-            commitment: vec![0; 32],
+            commitment_hr: vec![0; 32],
+            commitment_vks: vec![0; 32],
             exp_timestamp: 0,
             score: 0,
             enc_sender_id: vec![0; 48],
@@ -138,7 +143,8 @@ mod tests {
         let deserialized_tag = SenderTag::from_vec(&serialized_tag);
         assert!(deserialized_tag.is_ok());
         let deserialized_tag = deserialized_tag.unwrap();
-        assert_eq!(deserialized_tag.tag.commitment, vec![0; 32]);
+        assert_eq!(deserialized_tag.tag.commitment_hr, vec![0; 32]);
+        assert_eq!(deserialized_tag.tag.commitment_vks, vec![0; 32]);
         assert_eq!(deserialized_tag.tag.exp_timestamp, 0);
         assert_eq!(deserialized_tag.tag.score, 0);
         assert_eq!(deserialized_tag.tag.enc_sender_id, vec![0; 48]);
