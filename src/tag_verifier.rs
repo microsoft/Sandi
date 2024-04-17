@@ -15,10 +15,10 @@ pub struct VerificationError(pub String);
 
 pub fn verify(
     receiver_handle: &str,
-    message: &str,
     vks: &RistrettoPoint,
     tag: &Tag,
-    randomness: &Vec<u8>,
+    randomness_hr: &Vec<u8>,
+    randomness_vks: &Vec<u8>,
     proof: &(Scalar, Scalar),
     r_big: &RistrettoPoint,
     verifying_key: &Vec<u8>,
@@ -44,18 +44,17 @@ pub fn verify(
     }
 
     // Verify message correctness
-    let mut mac = Hmac::<Sha256>::new_from_slice(&randomness)
+    let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_hr)
         .map_err(|_| VerificationError("Invalid randomness".to_string()))?;
 
     mac.update(receiver_handle.as_bytes());
-    mac.update(message.as_bytes());
     let commitment = mac.finalize();
 
     if commitment.into_bytes().to_vec() != tag.commitment_hr {
         return Err(VerificationError("Invalid receiver commitment".to_string()));
     }
 
-    let mut mac = Hmac::<Sha256>::new_from_slice(&randomness)
+    let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_vks)
         .map_err(|_| VerificationError("Invalid randomness".to_string()))?;
 
     mac.update(vks.compress().as_bytes());
@@ -91,7 +90,6 @@ mod tests {
     #[test]
     fn verify_tag_test() {
         let receiver_handle = "receiver";
-        let message = "message to be sent";
         let mut rng = OsRng;
         let mut accsvr = AccountabilityServer::new(
             AccServerParams {
@@ -108,15 +106,16 @@ mod tests {
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 
         let tag = sender
-            .get_tag(message, receiver_handle, &accsvr, &mut rng)
+            .get_tag(receiver_handle, &accsvr, &mut rng)
             .unwrap();
 
         // Tag should be valid
         let verif_result = verify(
             receiver_handle,
-            message,
+            &sender.get_verifying_key(),
             &tag.tag,
-            &tag.randomness,
+            &tag.randomness_hr,
+            &tag.randomness_vks,
             &tag.proof,
             &tag.r_big,
             &accsvr.get_verifying_key(),

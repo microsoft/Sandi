@@ -16,7 +16,6 @@ pub mod gaussian;
 
 pub fn verify_tag(
     receiver_handle: &str,
-    message: &str,
     vks: &Vec<u8>,
     verifying_key: &Vec<u8>,
     tag: &Vec<u8>,
@@ -31,10 +30,10 @@ pub fn verify_tag(
         Ok(full_tag) => {
             let verif_result = tag_verifier::verify(
                 receiver_handle,
-                message,
                 &vks_point,
                 &full_tag.tag,
-                &full_tag.randomness,
+                &full_tag.randomness_hr,
+                &full_tag.randomness_vks,
                 &full_tag.proof,
                 &full_tag.r_big,
                 verifying_key,
@@ -81,7 +80,7 @@ mod tests {
         let msg = "This is a test message";
         let receiver_handle = "receiver";
         let tag = sender
-            .get_tag(msg, receiver_handle, &accsvr, &mut rng)
+            .get_tag(receiver_handle, &accsvr, &mut rng)
             .unwrap();
 
         // Verify tag
@@ -89,10 +88,10 @@ mod tests {
         let vks = sender.get_verifying_key();
         let verif_result = tag_verifier::verify(
             &receiver_handle,
-            &msg,
             vks,
             &tag.tag,
-            &tag.randomness,
+            &tag.randomness_hr,
+            &tag.randomness_vks,
             &tag.proof,
             &tag.r_big,
             &vk,

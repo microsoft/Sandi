@@ -10,7 +10,8 @@ use crate::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SenderTag {
     pub tag: Tag,
-    pub randomness: Vec<u8>,
+    pub randomness_hr: Vec<u8>,
+    pub randomness_vks: Vec<u8>,
     pub proof: (Scalar, Scalar),
     pub r_big: RistrettoPoint,
 }
@@ -25,7 +26,8 @@ impl SenderTag {
         let q_big = &FixedBuffer32(self.tag.q_big.compress().to_bytes());
         let g_prime = &FixedBuffer32(self.tag.g_prime.compress().to_bytes());
         let x_big = &FixedBuffer32(self.tag.x_big.compress().to_bytes());
-        let randomness = &FixedBuffer32(self.randomness.clone().try_into().unwrap());
+        let randomness_hr = &FixedBuffer32(self.randomness_hr.clone().try_into().unwrap());
+        let randomness_vks = &FixedBuffer32(self.randomness_vks.clone().try_into().unwrap());
         let z_c = &FixedBuffer32(self.proof.0.to_bytes());
         let z_s = &FixedBuffer32(self.proof.1.to_bytes());
         let r_big = &FixedBuffer32(self.r_big.compress().to_bytes());
@@ -40,7 +42,8 @@ impl SenderTag {
             g_prime: Some(g_prime),
             x_big: Some(x_big),
             signature: Some(signature),
-            randomness: Some(randomness),
+            randomness_hr: Some(randomness_hr),
+            randomness_vks: Some(randomness_vks),
             proof_c: Some(z_c),
             proof_s: Some(z_s),
             r_big: Some(r_big),
@@ -79,7 +82,8 @@ impl SenderTag {
             .decompress()
             .ok_or("Failed to decompress x_big")?;
         let signature = full_tag.signature().0.to_vec();
-        let randomness = full_tag.randomness().0.to_vec();
+        let randomness_hr = full_tag.randomness_hr().0.to_vec();
+        let randomness_vks = full_tag.randomness_vks().0.to_vec();
         let z_c = Scalar::from_canonical_bytes(full_tag.proof_c().0).unwrap();
         let z_s = Scalar::from_canonical_bytes(full_tag.proof_s().0).unwrap();
         let r_big = CompressedRistretto::from_slice(&full_tag.r_big().0)
@@ -101,7 +105,8 @@ impl SenderTag {
 
         Ok(SenderTag {
             tag,
-            randomness,
+            randomness_hr,
+            randomness_vks,
             proof: (z_c, z_s),
             r_big,
         })
@@ -132,7 +137,8 @@ mod tests {
 
         let full_tag = SenderTag {
             tag,
-            randomness: vec![0; 32],
+            randomness_hr: vec![0; 32],
+            randomness_vks: vec![0; 32],
             proof: (random_scalar(&mut rng), random_scalar(&mut rng)),
             r_big: random_point(&mut rng),
         };
@@ -152,7 +158,8 @@ mod tests {
         assert_eq!(deserialized_tag.tag.g_prime, full_tag.tag.g_prime);
         assert_eq!(deserialized_tag.tag.x_big, full_tag.tag.x_big);
         assert_eq!(deserialized_tag.tag.signature, vec![0; 64]);
-        assert_eq!(deserialized_tag.randomness, vec![0; 32]);
+        assert_eq!(deserialized_tag.randomness_hr, vec![0; 32]);
+        assert_eq!(deserialized_tag.randomness_vks, vec![0; 32]);
         assert_eq!(deserialized_tag.proof, full_tag.proof);
         assert_eq!(deserialized_tag.r_big, full_tag.r_big);
     }

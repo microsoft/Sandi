@@ -49,7 +49,6 @@ impl Sender {
 
     pub fn get_tag<R>(
         &self,
-        msg: &str,
         receiver_handle: &str,
         accountability_server: &AccountabilityServer,
         rng: &mut R,
@@ -57,14 +56,15 @@ impl Sender {
     where
         R: RngCore + CryptoRng,
     {
-        let mut randomness = [0u8; 32];
-        rng.fill_bytes(&mut randomness);
-        let mut mac = Hmac::<Sha256>::new_from_slice(&randomness).unwrap();
+        let mut randomness_hr = [0u8; 32];
+        rng.fill_bytes(&mut randomness_hr);
+        let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_hr).unwrap();
         mac.update(receiver_handle.as_bytes());
-        mac.update(msg.as_bytes());
         let commitment_hr = mac.finalize();
 
-        let mut mac = Hmac::<Sha256>::new_from_slice(&randomness).unwrap();
+        let mut randomness_vks = [0u8; 32];
+        rng.fill_bytes(&mut randomness_vks);
+        let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_vks).unwrap();
         mac.update(self.vks.compress().as_bytes());
         let commitment_vks = mac.finalize();
 
@@ -91,7 +91,8 @@ impl Sender {
 
                 Ok(SenderTag {
                     tag,
-                    randomness: randomness.to_vec(),
+                    randomness_hr: randomness_hr.to_vec(),
+                    randomness_vks: randomness_vks.to_vec(),
                     proof: z,
                     r_big,
                 })
@@ -123,7 +124,7 @@ mod tests {
         );
         let sender = Sender::new("Alice", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
-        let tag_opt = sender.get_tag("Hello Bob", "Bob", &accsvr, &mut rng);
+        let tag_opt = sender.get_tag("Bob", &accsvr, &mut rng);
         assert!(tag_opt.is_ok());
 
         let tag = tag_opt.unwrap();

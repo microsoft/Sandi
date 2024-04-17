@@ -388,6 +388,7 @@ impl TimeProvider for DefaultTimeProvider {
 #[cfg(test)]
 mod tests {
     use chrono::{NaiveDateTime, TimeZone, Utc};
+    use curve25519_dalek::ristretto::CompressedRistretto;
     use hmac::{Hmac, Mac};
     use rand::Rng;
     use sha2::Sha256;
@@ -436,7 +437,7 @@ mod tests {
             let sender_idx = idx as usize % 10;
             tags.push(
                 senders[sender_idx]
-                    .get_tag("This is the message", "receiver", &server, &mut rng)
+                    .get_tag("receiver", &server, &mut rng)
                     .unwrap(),
             );
         }
@@ -575,13 +576,17 @@ mod tests {
         );
         let mut mac = Hmac::<Sha256>::new_from_slice(&[0u8; 32]).unwrap();
         mac.update("receiver".as_bytes());
-        mac.update("This is a test message".as_bytes());
-        let commitment = mac.finalize();
+        let commitment_hr = mac.finalize();
+
+        let mut mac = Hmac::<Sha256>::new_from_slice(&[1u8; 32]).unwrap();
+        let vks = CompressedRistretto::from_slice(&[2u8; 32]).unwrap().decompress().unwrap();
+        mac.update(vks.compress().as_bytes());
+        let commitment_vks = mac.finalize();
 
         let sender = Sender::new("sender1", &mut rng);
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 
-        let tag_res = accsvr.issue_tag(&commitment.into_bytes().to_vec(), &sender.handle, &mut rng);
+        let tag_res = accsvr.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &sender.handle, &mut rng);
         assert!(tag_res.is_ok());
 
         let tag = tag_res.unwrap();
@@ -651,7 +656,7 @@ mod tests {
             unsafe { MOCK_TIME = timestamp };
             tags.push(
                 sender
-                    .get_tag("This is the message", "receiver", &acc_svr, &mut rng)
+                    .get_tag("receiver", &acc_svr, &mut rng)
                     .unwrap(),
             );
         }
