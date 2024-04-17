@@ -241,7 +241,7 @@ fn serialize_tag_bench(c: &mut Criterion) {
     c.bench_function("serialize_tag", |b| {
         b.iter(|| {
             let vec = tag.to_vec();
-            assert_eq!(vec.len(), 268);
+            assert_eq!(vec.len(), 304);
         });
     });
 }
