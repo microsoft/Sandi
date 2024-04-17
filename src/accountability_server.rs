@@ -190,6 +190,7 @@ impl AccountabilityServer {
         // Then, we sign tag information
         let mut data_to_sign = Vec::new();
         data_to_sign.extend_from_slice(&commitment_hr);
+        data_to_sign.extend_from_slice(&commitment_vks);
         data_to_sign.extend_from_slice(expiration_date.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(score.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(&encrypted_sender_id);
@@ -592,7 +593,7 @@ mod tests {
         let tag = tag_res.unwrap();
 
         let binary: heapless::Vec<u8, 350> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 249);
+        assert_eq!(binary.len(), 282);
     }
 
     #[test]

@@ -45,7 +45,7 @@ pub fn verify(
 
     // Verify message correctness
     let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_hr)
-        .map_err(|_| VerificationError("Invalid randomness".to_string()))?;
+        .map_err(|_| VerificationError("Invalid randomness receiver".to_string()))?;
 
     mac.update(receiver_handle.as_bytes());
     let commitment = mac.finalize();
@@ -55,7 +55,7 @@ pub fn verify(
     }
 
     let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_vks)
-        .map_err(|_| VerificationError("Invalid randomness".to_string()))?;
+        .map_err(|_| VerificationError("Invalid randomness vks".to_string()))?;
 
     mac.update(vks.compress().as_bytes());
     let commitment = mac.finalize();

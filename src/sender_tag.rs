@@ -12,6 +12,7 @@ pub struct SenderTag {
     pub tag: Tag,
     pub randomness_hr: Vec<u8>,
     pub randomness_vks: Vec<u8>,
+    pub vks: RistrettoPoint,
     pub proof: (Scalar, Scalar),
     pub r_big: RistrettoPoint,
 }
@@ -28,6 +29,7 @@ impl SenderTag {
         let x_big = &FixedBuffer32(self.tag.x_big.compress().to_bytes());
         let randomness_hr = &FixedBuffer32(self.randomness_hr.clone().try_into().unwrap());
         let randomness_vks = &FixedBuffer32(self.randomness_vks.clone().try_into().unwrap());
+        let vks = &FixedBuffer32(self.vks.compress().to_bytes());
         let z_c = &FixedBuffer32(self.proof.0.to_bytes());
         let z_s = &FixedBuffer32(self.proof.1.to_bytes());
         let r_big = &FixedBuffer32(self.r_big.compress().to_bytes());
@@ -44,6 +46,7 @@ impl SenderTag {
             signature: Some(signature),
             randomness_hr: Some(randomness_hr),
             randomness_vks: Some(randomness_vks),
+            vks: Some(vks),
             proof_c: Some(z_c),
             proof_s: Some(z_s),
             r_big: Some(r_big),
@@ -84,6 +87,10 @@ impl SenderTag {
         let signature = full_tag.signature().0.to_vec();
         let randomness_hr = full_tag.randomness_hr().0.to_vec();
         let randomness_vks = full_tag.randomness_vks().0.to_vec();
+        let vks = CompressedRistretto::from_slice(&full_tag.vks().0)
+            .unwrap()
+            .decompress()
+            .ok_or("Failed to decompress vks")?;
         let z_c = Scalar::from_canonical_bytes(full_tag.proof_c().0).unwrap();
         let z_s = Scalar::from_canonical_bytes(full_tag.proof_s().0).unwrap();
         let r_big = CompressedRistretto::from_slice(&full_tag.r_big().0)
@@ -107,6 +114,7 @@ impl SenderTag {
             tag,
             randomness_hr,
             randomness_vks,
+            vks,
             proof: (z_c, z_s),
             r_big,
         })
@@ -139,12 +147,13 @@ mod tests {
             tag,
             randomness_hr: vec![0; 32],
             randomness_vks: vec![0; 32],
+            vks: random_point(&mut rng),
             proof: (random_scalar(&mut rng), random_scalar(&mut rng)),
             r_big: random_point(&mut rng),
         };
 
         let serialized_tag = full_tag.to_vec();
-        assert_eq!(serialized_tag.len(), 404);
+        assert_eq!(serialized_tag.len(), 508);
 
         let deserialized_tag = SenderTag::from_vec(&serialized_tag);
         assert!(deserialized_tag.is_ok());
@@ -160,6 +169,7 @@ mod tests {
         assert_eq!(deserialized_tag.tag.signature, vec![0; 64]);
         assert_eq!(deserialized_tag.randomness_hr, vec![0; 32]);
         assert_eq!(deserialized_tag.randomness_vks, vec![0; 32]);
+        assert_eq!(deserialized_tag.vks, full_tag.vks);
         assert_eq!(deserialized_tag.proof, full_tag.proof);
         assert_eq!(deserialized_tag.r_big, full_tag.r_big);
     }

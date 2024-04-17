@@ -118,7 +118,7 @@ mod tests {
         rng.fill_bytes(&mut tag.enc_sender_id);
 
         let vec = tag.to_vec();
-        assert_eq!(vec.len(), 268);
+        assert_eq!(vec.len(), 304);
 
         let tag2 = Tag::from_vec(&vec);
         assert!(tag2.is_ok());

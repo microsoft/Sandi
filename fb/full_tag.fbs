@@ -18,6 +18,7 @@ table FullTag {
 
     randomness_hr: FixedBuffer32 (required);
     randomness_vks: FixedBuffer32 (required);
+    vks: FixedBuffer32 (required);
     proof_c: FixedBuffer32 (required);
     proof_s: FixedBuffer32 (required);
     r_big: FixedBuffer32 (required);

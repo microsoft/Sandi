@@ -77,7 +77,6 @@ mod tests {
         accsvr.set_sender_pk(&sender.epk, &sender.handle);
 
         // Ask for a tag
-        let msg = "This is a test message";
         let receiver_handle = "receiver";
         let tag = sender
             .get_tag(receiver_handle, &accsvr, &mut rng)
