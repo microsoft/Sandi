@@ -25,12 +25,11 @@ fn get_tag_bench(c: &mut Criterion) {
     let sender = Sender::new("sender1", &mut rng);
     server.set_sender_pk(&sender.epk, &sender.handle);
 
-    let message = "This is a test message";
     let receiver_handle = "receiver_handle";
 
     c.bench_function("get_tag", |b| {
         b.iter(|| {
-            let result = sender.get_tag(&message, &receiver_handle, &server, &mut rng);
+            let result = sender.get_tag(&receiver_handle, &server, &mut rng);
             assert!(result.is_ok());
         })
     });
@@ -50,8 +49,10 @@ fn issue_tag_bench(c: &mut Criterion) {
         &mut rng,
     );
 
-    let mut commitment = [0u8; 32];
-    rng.fill_bytes(&mut commitment);
+    let mut commitment_hr = [0u8; 32];
+    rng.fill_bytes(&mut commitment_hr);
+    let mut commitment_vks = [0u8; 32];
+    rng.fill_bytes(&mut commitment_vks);
 
     let sender_handle = "sender_handle";
     let sender = Sender::new(sender_handle, &mut rng);
@@ -59,7 +60,7 @@ fn issue_tag_bench(c: &mut Criterion) {
 
     c.bench_function("issue_tag", |b| {
         b.iter(|| {
-            let result = server.issue_tag(&commitment.to_vec(), sender_handle, &mut rng);
+            let result = server.issue_tag(&commitment_hr.to_vec(), &commitment_vks.to_vec(), sender_handle, &mut rng);
             assert!(result.is_ok());
         })
     });
@@ -83,19 +84,19 @@ fn verify_tag_bench(c: &mut Criterion) {
     let verifying_key = server.get_verifying_key();
 
     let receiver_handle = "receiver_handle";
-    let msg = "This is a test message";
 
     let tag = sender
-        .get_tag(msg, receiver_handle, &server, &mut rng)
+        .get_tag(receiver_handle, &server, &mut rng)
         .unwrap();
 
     c.bench_function("verify_tag", |b| {
         b.iter(|| {
             let _ = tag_verifier::verify(
                 receiver_handle,
-                msg,
+                sender.get_verifying_key(),
                 &tag.tag,
-                &tag.randomness,
+                &tag.randomness_hr,
+                &tag.randomness_vks,
                 &tag.proof,
                 &tag.r_big,
                 &verifying_key,
@@ -130,14 +131,13 @@ fn report_tag_bench(c: &mut Criterion) {
     }
 
     let receiver_handle = "receiver_handle";
-    let msg = "This is a test message";
 
     // Get NUM_SENDERS tags
     let mut tags: Vec<SenderTag> = Vec::new();
     for idx in 0..NUM_SENDERS {
         tags.push(
             senders[idx]
-                .get_tag(msg, receiver_handle, &server, &mut rng)
+                .get_tag(receiver_handle, &server, &mut rng)
                 .unwrap(),
         );
     }
@@ -218,14 +218,17 @@ fn serialize_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut signature: [u8; 64] = [0; 64];
     rng.fill_bytes(&mut signature);
-    let mut commitment = [0u8; 32];
-    rng.fill_bytes(&mut commitment);
+    let mut commitment_hr = [0u8; 32];
+    rng.fill_bytes(&mut commitment_hr);
+    let mut commitment_vks = [0u8; 32];
+    rng.fill_bytes(&mut commitment_vks);
     let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
 
 
     let tag = Tag {
-        commitment: commitment.to_vec(),
+        commitment_hr: commitment_hr.to_vec(),
+        commitment_vks: commitment_vks.to_vec(),
         exp_timestamp: 0,
         score: 0,
         enc_sender_id: enc_sender_id.to_vec(),
@@ -247,13 +250,16 @@ fn deserialize_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut signature: [u8; 64] = [0; 64];
     rng.fill_bytes(&mut signature);
-    let mut commitment = [0u8; 32];
-    rng.fill_bytes(&mut commitment);
+    let mut commitment_hr = [0u8; 32];
+    rng.fill_bytes(&mut commitment_hr);
+    let mut commitment_vks = [0u8; 32];
+    rng.fill_bytes(&mut commitment_vks);
     let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
 
     let tag = Tag {
-        commitment: commitment.to_vec(),
+        commitment_hr: commitment_hr.to_vec(),
+        commitment_vks: commitment_vks.to_vec(),
         exp_timestamp: 0,
         score: 0,
         enc_sender_id: enc_sender_id.to_vec(),
@@ -277,16 +283,21 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut signature: [u8; 64] = [0; 64];
     rng.fill_bytes(&mut signature);
-    let mut commitment = [0u8; 32];
-    rng.fill_bytes(&mut commitment);
+    let mut commitment_hr = [0u8; 32];
+    rng.fill_bytes(&mut commitment_hr);
+    let mut commitment_vks = [0u8; 32];
+    rng.fill_bytes(&mut commitment_vks);
     let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
-    let mut randomness = [0u8; 32];
-    rng.fill_bytes(&mut randomness);
+    let mut randomness_hr = [0u8; 32];
+    rng.fill_bytes(&mut randomness_hr);
+    let mut randomness_vks = [0u8; 32];
+    rng.fill_bytes(&mut randomness_vks);
     let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
 
     let tag = Tag {
-        commitment: commitment.to_vec(),
+        commitment_hr: commitment_hr.to_vec(),
+        commitment_vks: commitment_vks.to_vec(),
         exp_timestamp: 0,
         score: 0,
         enc_sender_id: enc_sender_id.to_vec(),
@@ -298,7 +309,9 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
 
     let sender_tag = SenderTag {
         tag,
-        randomness: randomness.to_vec(),
+        randomness_hr: randomness_hr.to_vec(),
+        randomness_vks: randomness_vks.to_vec(),
+        vks: random_point(&mut rng),
         proof: proof,
         r_big: random_point(&mut rng),
     };
@@ -306,7 +319,7 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     c.bench_function("serialize_full_tag", |b| {
         b.iter(|| {
             let vec = sender_tag.to_vec();
-            assert_eq!(vec.len(), 404);
+            assert_eq!(vec.len(), 508);
         });
     });
 }
@@ -315,16 +328,21 @@ fn deserialize_full_tag_bench(c: &mut Criterion) {
     let mut rng = OsRng;
     let mut signature: [u8; 64] = [0; 64];
     rng.fill_bytes(&mut signature);
-    let mut commitment = [0u8; 32];
-    rng.fill_bytes(&mut commitment);
+    let mut commitment_hr = [0u8; 32];
+    rng.fill_bytes(&mut commitment_hr);
+    let mut commitment_vks = [0u8; 32];
+    rng.fill_bytes(&mut commitment_vks);
     let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
-    let mut randomness = [0u8; 32];
-    rng.fill_bytes(&mut randomness);
+    let mut randomness_hr = [0u8; 32];
+    rng.fill_bytes(&mut randomness_hr);
+    let mut randomness_vks = [0u8; 32];
+    rng.fill_bytes(&mut randomness_vks);
     let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
 
     let tag = Tag {
-        commitment: commitment.to_vec(),
+        commitment_hr: commitment_hr.to_vec(),
+        commitment_vks: commitment_vks.to_vec(),
         exp_timestamp: 0,
         score: 0,
         enc_sender_id: enc_sender_id.to_vec(),
@@ -336,7 +354,9 @@ fn deserialize_full_tag_bench(c: &mut Criterion) {
 
     let sender_tag = SenderTag {
         tag,
-        randomness: randomness.to_vec(),
+        randomness_hr: randomness_hr.to_vec(),
+        randomness_vks: randomness_vks.to_vec(),
+        vks: random_point(&mut rng),
         proof: proof,
         r_big: random_point(&mut rng),
     };
@@ -367,20 +387,21 @@ fn end_to_end_bench(c: &mut Criterion) {
     let sender = Sender::new("sender1", &mut rng);
     server.set_sender_pk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
+    let sender_verifying_key = sender.get_verifying_key();
 
     let receiver_handle = "receiver_handle";
-    let msg = "This is a test message";
 
     c.bench_function("end_to_end", |b| {
         b.iter(|| {
             let tag = sender
-                .get_tag(msg, receiver_handle, &server, &mut rng)
+                .get_tag(receiver_handle, &server, &mut rng)
                 .unwrap();
             let _ = tag_verifier::verify(
                 receiver_handle,
-                msg,
+                &sender_verifying_key,
                 &tag.tag,
-                &tag.randomness,
+                &tag.randomness_hr,
+                &tag.randomness_vks,
                 &tag.proof,
                 &tag.r_big,
                 &verifying_key,
