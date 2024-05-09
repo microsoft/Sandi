@@ -14,7 +14,7 @@ pub struct Sender {
     pub handle: String,
     pub epk: RistrettoPoint,
     esk: Scalar,
-    vks: RistrettoPoint,
+    pub vks: RistrettoPoint,
     sks: Scalar,
 }
 
@@ -26,13 +26,8 @@ impl Sender {
     where
         R: CryptoRng + RngCore,
     {
-        let mut sk = [0u8; 32];
-        rng.fill_bytes(&mut sk);
-        let esk = Scalar::from_bytes_mod_order(sk);
-        let epk = G() * esk;
-        rng.fill_bytes(&mut sk);
-        let sks = Scalar::from_bytes_mod_order(sk);
-        let vks = G() * sks;
+        let (epk, esk) = Sender::generate_keypair(rng);
+        let (vks, sks) = Sender::generate_keypair(rng);
 
         Sender {
             handle: handle.to_owned(),
@@ -45,6 +40,28 @@ impl Sender {
 
     pub fn get_verifying_key(&self) -> &RistrettoPoint {
         &self.vks
+    }
+
+    pub fn generate_new_epoch_keys<R>(&mut self, rng: &mut R)
+    where
+        R: CryptoRng + RngCore,
+    {
+        let (epk, esk) = Sender::generate_keypair(rng);
+
+        self.epk = epk;
+        self.esk = esk;
+    }
+
+    fn generate_keypair<R>(rng: &mut R) -> (RistrettoPoint, Scalar)
+    where
+        R: CryptoRng + RngCore,
+    {
+        let mut sk = [0u8; 32];
+        rng.fill_bytes(&mut sk);
+        let esk = Scalar::from_bytes_mod_order(sk);
+        let epk = G() * esk;
+
+        (epk, esk)
     }
 
     pub fn get_tag<R>(
@@ -116,6 +133,7 @@ mod tests {
             AccServerParams {
                 maximum_score: 100.0,
                 report_threashold: 10,
+                epoch_start: 0,
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
@@ -124,7 +142,9 @@ mod tests {
             &mut rng,
         );
         let sender = Sender::new("Alice", &mut rng);
-        accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
+
         let tag_opt = sender.get_tag("Bob", &accsvr, &mut rng);
         assert!(tag_opt.is_ok());
 

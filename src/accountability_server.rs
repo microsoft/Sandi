@@ -6,7 +6,7 @@ use crate::utils::{
     basepoint_order, concat_id_and_scalars, decrypt, encrypt,
     random_scalar, verify_signature, SignatureVerificationError, G,
 };
-use crate::epochs::get_start_of_day;
+use crate::epochs::{get_epoch, get_start_of_day};
 use chrono::Duration;
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use ed25519_dalek::{Signer, SigningKey};
@@ -118,19 +118,27 @@ impl AccountabilityServer {
         }
     }
 
-    pub fn set_sender_pk(&mut self, epk: &RistrettoPoint, sender_handle: &str) {
+    pub fn set_sender_pk(&mut self, epk: &RistrettoPoint, sender_handle: &str) -> Result<(), AccSvrError> {
+        // Get current epoch
+        let epoch = get_epoch(self.time_provider.get_current_time(), self.params.epoch_duration.try_into().unwrap(), self.params.epoch_start);
         let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
+
         match sender_opt {
-            Some(mut sender) => {
-                sender.epk = epk.clone();
-                self.sender_records.set_sender(sender);
+            Some(sender) => {
+                match self.sender_records.set_sender_epk(&sender.id, epoch, epk.clone()) {
+                    Ok(_) => return Ok(()),
+                    Err(e) => {
+                        return Err(AccSvrError(e.0));
+                    }
+                }
             }
             None => {
                 let mut rng = OsRng;
                 let mut sender =
                     SenderRecord::new(sender_handle, self.params.tag_duration, self.params.maximum_score, &mut rng);
-                sender.epk = epk.clone();
+                sender.epks.insert(epoch, epk.clone());
                 self.sender_records.set_sender(sender);
+                Ok(())
             }
         }
     }
@@ -152,12 +160,22 @@ impl AccountabilityServer {
     where
         R: RngCore + CryptoRng,
     {
+        // Current epoch
+        let epoch = get_epoch(self.time_provider.get_current_time(), self.params.epoch_duration.try_into().unwrap(), self.params.epoch_start);
+
         // First, we need to check if the sender_handle is valid
         let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
         if sender_opt.is_none() {
             return Err(AccSvrError("Sender not found".to_string()));
         }
         let sender = sender_opt.unwrap();
+
+        // PK for current epoch
+        let epk_opt = sender.epks.get(&epoch);
+        if epk_opt.is_none() {
+            return Err(AccSvrError("Sender PK not found".to_string()));
+        }
+        let epk = epk_opt.unwrap();
 
         // s is random scalar
         let s = random_scalar(rng);
@@ -166,7 +184,7 @@ impl AccountabilityServer {
         let g_prime = s * G();
 
         // X
-        let x_big = s * sender.epk;
+        let x_big = s * epk;
 
         // n, r
         let mut n = [0u8; 8];
@@ -417,6 +435,7 @@ mod tests {
             AccServerParams {
                 maximum_score: 1000.0,
                 report_threashold: 10,
+                epoch_start: 1614556800, // March 1, 2021 00:00:00
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
@@ -430,7 +449,8 @@ mod tests {
         for i in 0..10 {
             let sender_handle = format!("sender{}", i);
             let sender = Sender::new(&sender_handle, &mut rng);
-            server.set_sender_pk(&sender.epk, &sender_handle);
+            let set_pk_result = server.set_sender_pk(&sender.epk, &sender_handle);
+            assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
             senders.push(sender);
         }
 
@@ -571,6 +591,7 @@ mod tests {
             AccServerParams {
                 maximum_score: 100.0,
                 report_threashold: 10,
+                epoch_start: 1614556800, // March 1, 2021 00:00:00
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
@@ -588,7 +609,8 @@ mod tests {
         let commitment_vks = mac.finalize();
 
         let sender = Sender::new("sender1", &mut rng);
-        accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         let tag_res = accsvr.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &sender.handle, &mut rng);
         assert!(tag_res.is_ok());
@@ -623,25 +645,6 @@ mod tests {
         let mut rng = OsRng;
         let time_provider = Box::new(MockTimeProvider {});
 
-        let mut acc_svr = AccountabilityServer::new_with_time_provider(
-            AccServerParams {
-                maximum_score: 100.0,
-                report_threashold: 10,
-                epoch_duration: 24,
-                tag_duration: 2,
-                compute_score: None,
-                noise_distribution: None,
-            },
-            &mut rng,
-            time_provider,
-        );
-
-        let sender = Sender::new("sender1", &mut rng);
-        acc_svr.set_sender_pk(&sender.epk, &sender.handle);
-
-        // Get tags
-        let mut tags: Vec<SenderTag> = Vec::new();
-
         // UTC now will be the timestamp of a specific UTC date
         let utc_now = Utc
             .from_utc_datetime(
@@ -651,8 +654,43 @@ mod tests {
 
         // Starting range is 3 days ago
         let starting_range = utc_now - 3 * 24 * 3600;
+        let epoch_start = get_start_of_day(starting_range);
+
         // Ending range is now minus 10 minutes
         let ending_range = utc_now;
+
+        let mut acc_svr = AccountabilityServer::new_with_time_provider(
+            AccServerParams {
+                maximum_score: 100.0,
+                report_threashold: 10,
+                epoch_start,
+                epoch_duration: 24,
+                tag_duration: 2,
+                compute_score: None,
+                noise_distribution: None,
+            },
+            &mut rng,
+            time_provider,
+        );
+
+        let mut sender = Sender::new("sender1", &mut rng);
+
+        // Set sender PK for all epochs
+        for i in 0..3 {
+            let curr_ts = starting_range + i * 24 * 3600;
+            unsafe { MOCK_TIME = curr_ts };
+
+            let set_pk_result = acc_svr.set_sender_pk(&sender.epk, &sender.handle);
+            assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
+
+            sender.generate_new_epoch_keys(&mut rng);
+        }
+
+        let set_pk_result = acc_svr.set_sender_pk(&sender.epk, &sender.handle);
+        assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
+
+        // Get tags
+        let mut tags: Vec<SenderTag> = Vec::new();
 
         // Generate tags with random timestamps
         for _ in 0..1000 {
@@ -665,7 +703,7 @@ mod tests {
             );
         }
 
-        // Report tags. Time should be the correct one noe
+        // Report tags. Time should be the correct one now
         unsafe { MOCK_TIME = utc_now };
         let mut expired_tags = 0;
         for tag in tags {
@@ -736,6 +774,7 @@ mod tests {
         let params = AccServerParams {
             maximum_score: 100.0,
             report_threashold: 10,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: Some(|score, _| {
@@ -775,6 +814,7 @@ mod tests {
         let params = AccServerParams {
             maximum_score: 100.0,
             report_threashold: 10,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
@@ -795,6 +835,7 @@ mod tests {
         let params = AccServerParams {
             maximum_score: 100.0,
             report_threashold: 10,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
@@ -814,6 +855,7 @@ mod tests {
         let params = AccServerParams {
             maximum_score: 100.0,
             report_threashold: 10,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,

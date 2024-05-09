@@ -67,6 +67,7 @@ mod tests {
             AccServerParams {
                 maximum_score: 100.0,
                 report_threashold: 10,
+                epoch_start: 0,
                 epoch_duration: 24,
                 tag_duration: 2,
                 compute_score: None,
@@ -75,7 +76,8 @@ mod tests {
             &mut rng,
         );
         let sender = Sender::new("sender1", &mut rng);
-        accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         // Ask for a tag
         let receiver_handle = "receiver";

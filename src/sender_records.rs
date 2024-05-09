@@ -13,7 +13,7 @@ pub type Token = ([u8; 8], RistrettoPoint);
 pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
-    pub epks: HashMap<i32, RistrettoPoint>,
+    pub epks: HashMap<i64, RistrettoPoint>,
     pub score: f32,
     pub b_param: f32,
     pub report_count: Vec<i32>,
@@ -90,10 +90,10 @@ impl SenderRecords {
             .or_insert(sender_record);
     }
 
-    pub(crate) fn set_sender_epk(&mut self, sender_id: &SenderId, epoch: i32, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
+    pub(crate) fn set_sender_epk(&mut self, sender_id: &SenderId, epoch: i64, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
         // First find the sender
         let sender_rec = self.records.get_mut(sender_id);
-        match(sender_rec)
+        match sender_rec
         {
             None => return Err(SenderRecordError("Sender not found".to_string())),
             Some(sender) => {
@@ -104,6 +104,16 @@ impl SenderRecords {
                 sender.epks.insert(epoch, epk);
                 Ok(())
             }
+        }
+    }
+
+    pub(crate) fn set_sender_epk_byhandle(&mut self, handle: &str, epoch: i64, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
+        // First find the sender
+        let sender_id = self.ids.get(handle).cloned();
+        if let Some(id) = sender_id {
+            self.set_sender_epk(&id, epoch, epk)
+        } else {
+            return Err(SenderRecordError("Sender not found".to_string()))
         }
     }
 

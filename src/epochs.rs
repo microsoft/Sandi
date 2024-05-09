@@ -23,8 +23,8 @@ pub fn get_epoch(timestamp: i64, epoch_duration: i64, epoch_start: i64) -> i64 {
 
 pub fn get_timestamp_for_date_and_time(year: i32, month: u32, day: u32, hour: u32, minute: u32, second: u32) -> i64 {
     let dt = NaiveDateTime::new(
-        chrono::NaiveDate::from_ymd(year, month, day),
-        chrono::NaiveTime::from_hms(hour, minute, second),
+        chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap(),
+        chrono::NaiveTime::from_hms_opt(hour, minute, second).unwrap(),
     );
     dt.timestamp()
 }
