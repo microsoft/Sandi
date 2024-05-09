@@ -3,9 +3,10 @@ use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
 use crate::tag::Tag;
 use crate::utils::{
-    basepoint_order, concat_id_and_scalars, decrypt, encrypt, get_start_of_day,
+    basepoint_order, concat_id_and_scalars, decrypt, encrypt,
     random_scalar, verify_signature, SignatureVerificationError, G,
 };
+use crate::epochs::get_start_of_day;
 use chrono::Duration;
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use ed25519_dalek::{Signer, SigningKey};
@@ -32,6 +33,8 @@ pub struct AccServerParams {
     pub maximum_score: f32,
     // Report threshold to affect score
     pub report_threashold: i32,
+    // Timestamp of the epoch start
+    pub epoch_start: i64,
     // Epoch duration in hours
     pub epoch_duration: usize,
     // Tag duration in epochs

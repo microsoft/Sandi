@@ -9,7 +9,6 @@ use aes::{
     },
     Aes256,
 };
-use chrono::{DateTime, NaiveDateTime, Utc};
 use curve25519_dalek::{
     constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT},
     RistrettoPoint, Scalar,
@@ -161,16 +160,6 @@ pub fn concat_id_and_scalars(id: &SenderId, n: &[u8; 8], r: &Scalar) -> Vec<u8> 
     result.extend_from_slice(n);
     result.extend_from_slice(id);
     result
-}
-
-pub fn get_start_of_day(timestamp: i64) -> i64 {
-    // Get UTC DateTimne frin timestamp
-    let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp, 0), Utc);
-
-    // Get start of day
-    let date_part = dt.naive_utc();
-    let start_of_day = date_part.date().and_hms(0, 0, 0).and_utc();
-    start_of_day.timestamp()
 }
 
 #[cfg(test)]

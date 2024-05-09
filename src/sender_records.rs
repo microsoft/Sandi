@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{tag::Tag, utils::G};
+use crate::tag::Tag;
 use curve25519_dalek::RistrettoPoint;
 use rand::{CryptoRng, RngCore};
 
@@ -13,7 +13,7 @@ pub type Token = ([u8; 8], RistrettoPoint);
 pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
-    pub epk: RistrettoPoint,
+    pub epks: HashMap<i32, RistrettoPoint>,
     pub score: f32,
     pub b_param: f32,
     pub report_count: Vec<i32>,
@@ -26,6 +26,8 @@ pub(crate) struct SenderRecords {
     pub ids: HashMap<String, SenderId>,
 }
 
+pub (crate) struct SenderRecordError(pub String);
+
 impl SenderRecord {
     pub fn new<R>(handle: &str, num_epochs: usize, initial_score: f32, rng: &mut R) -> SenderRecord
     where
@@ -33,12 +35,11 @@ impl SenderRecord {
     {
         let mut sender_id = SenderId::default();
         rng.fill_bytes(&mut sender_id);
-        let epk = G();
 
         SenderRecord {
             id: sender_id,
             handles: vec![handle.to_string()],
-            epk,
+            epks: HashMap::new(),
             score: initial_score,
             b_param: 1.0,
             report_count: vec![0; num_epochs + 1],
@@ -87,6 +88,23 @@ impl SenderRecords {
                 e.report_count = sender_record.report_count.clone();
             })
             .or_insert(sender_record);
+    }
+
+    pub(crate) fn set_sender_epk(&mut self, sender_id: &SenderId, epoch: i32, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
+        // First find the sender
+        let sender_rec = self.records.get_mut(sender_id);
+        match(sender_rec)
+        {
+            None => return Err(SenderRecordError("Sender not found".to_string())),
+            Some(sender) => {
+                if sender.epks.contains_key(&epoch) {
+                    return Err(SenderRecordError("EPK already exists for this epoch".to_string()));
+                }
+
+                sender.epks.insert(epoch, epk);
+                Ok(())
+            }
+        }
     }
 
     // Iterate over all senders, executing the given function

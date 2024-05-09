@@ -4,6 +4,7 @@ use tag_verifier::VerificationError;
 
 pub mod accountability_server;
 pub mod batch_ndleq;
+pub mod epochs;
 pub mod nizqdleq;
 pub mod sender;
 pub mod sender_records;
