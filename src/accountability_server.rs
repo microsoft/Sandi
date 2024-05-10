@@ -656,9 +656,6 @@ mod tests {
         let starting_range = utc_now - 3 * 24 * 3600;
         let epoch_start = get_start_of_day(starting_range);
 
-        // Ending range is now minus 10 minutes
-        let ending_range = utc_now;
-
         let mut acc_svr = AccountabilityServer::new_with_time_provider(
             AccServerParams {
                 maximum_score: 100.0,
