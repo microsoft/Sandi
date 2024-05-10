@@ -674,33 +674,23 @@ mod tests {
         );
 
         let mut sender = Sender::new("sender1", &mut rng);
+        let mut tags: Vec<SenderTag> = Vec::new();
 
-        // Set sender PK for all epochs
-        for i in 0..3 {
+        // Set sender PK for all epochs and insert tags per epoch
+        for i in 0..4 {
             let curr_ts = starting_range + i * 24 * 3600;
             unsafe { MOCK_TIME = curr_ts };
+
+            sender.generate_new_epoch_keys(&mut rng);
 
             let set_pk_result = acc_svr.set_sender_pk(&sender.epk, &sender.handle);
             assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
-            sender.generate_new_epoch_keys(&mut rng);
-        }
-
-        let set_pk_result = acc_svr.set_sender_pk(&sender.epk, &sender.handle);
-        assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
-
-        // Get tags
-        let mut tags: Vec<SenderTag> = Vec::new();
-
-        // Generate tags with random timestamps
-        for _ in 0..1000 {
-            let timestamp = rng.gen_range(starting_range..ending_range);
-            unsafe { MOCK_TIME = timestamp };
-            tags.push(
-                sender
-                    .get_tag("receiver", &acc_svr, &mut rng)
-                    .unwrap(),
-            );
+            // Generate tags for this epoch
+            for _ in 0..250 {
+                let tag = sender.get_tag("receiver", &acc_svr, &mut rng).unwrap();
+                tags.push(tag);
+            }
         }
 
         // Report tags. Time should be the correct one now
@@ -723,7 +713,7 @@ mod tests {
         println!("Expired tags: {}", expired_tags);
         for sender in &acc_svr.sender_records.records {
             for i in 0..sender.1.report_count.len() {
-                println!("Report count: {}", sender.1.report_count[i]);
+                println!("Report count {}: {}", i, sender.1.report_count[i]);
                 assert!(sender.1.report_count[i] > 0);
             }
         }
