@@ -32,7 +32,7 @@ pub struct AccServerParams {
     // Maximum score a sender can have
     pub maximum_score: f32,
     // Report threshold to affect score
-    pub report_threashold: i32,
+    pub report_threshold: i32,
     // Timestamp of the epoch start
     pub epoch_start: i64,
     // Epoch duration in hours
@@ -348,16 +348,16 @@ impl AccountabilityServer {
         current_score: f32,
         reported_tag_count: i32,
         maximum_score: f32,
-        report_threashold: i32,
+        report_threshold: i32,
         b: f32,
     ) -> f32 {
-        if reported_tag_count >= report_threashold {
-            return current_score - (reported_tag_count - report_threashold) as f32;
-        } else if reported_tag_count < report_threashold && current_score >= 0.0 {
+        if reported_tag_count >= report_threshold {
+            return current_score - (reported_tag_count - report_threshold) as f32;
+        } else if reported_tag_count < report_threshold && current_score >= 0.0 {
             return (current_score + b).min(maximum_score);
         } else {
-            assert!(reported_tag_count < report_threashold && current_score < 0.0);
-            return (current_score - (reported_tag_count - report_threashold) as f32).min(0.0);
+            assert!(reported_tag_count < report_threshold && current_score < 0.0);
+            return (current_score - (reported_tag_count - report_threshold) as f32).min(0.0);
         }
     }
 
@@ -376,7 +376,7 @@ impl AccountabilityServer {
                 sender.score,
                 report_count as i32,
                 self.params.maximum_score,
-                self.params.report_threashold,
+                self.params.report_threshold,
                 sender.b_param,
             );
 
@@ -434,7 +434,7 @@ mod tests {
         let mut server = AccountabilityServer::new(
             AccServerParams {
                 maximum_score: 1000.0,
-                report_threashold: 10,
+                report_threshold: 10,
                 epoch_start: 1614556800, // March 1, 2021 00:00:00
                 epoch_duration: 24,
                 tag_duration: 2,
@@ -590,7 +590,7 @@ mod tests {
         let mut accsvr = AccountabilityServer::new(
             AccServerParams {
                 maximum_score: 100.0,
-                report_threashold: 10,
+                report_threshold: 10,
                 epoch_start: 1614556800, // March 1, 2021 00:00:00
                 epoch_duration: 24,
                 tag_duration: 2,
@@ -659,7 +659,7 @@ mod tests {
         let mut acc_svr = AccountabilityServer::new_with_time_provider(
             AccServerParams {
                 maximum_score: 100.0,
-                report_threashold: 10,
+                report_threshold: 10,
                 epoch_start,
                 epoch_duration: 24,
                 tag_duration: 2,
@@ -760,7 +760,7 @@ mod tests {
     fn custom_score_function_test() {
         let params = AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
@@ -800,7 +800,7 @@ mod tests {
     fn invalid_noise_distribution_nomax_test() {
         let params = AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
@@ -821,7 +821,7 @@ mod tests {
     fn invalid_noise_distribution_maxnotminusone_test() {
         let params = AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
@@ -841,7 +841,7 @@ mod tests {
     fn valid_noise_distribution_test() {
         let params = AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,

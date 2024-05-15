@@ -14,7 +14,7 @@ fn get_tag_bench(c: &mut Criterion) {
     let mut server = AccountabilityServer::new(
         AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
@@ -40,7 +40,7 @@ fn issue_tag_bench(c: &mut Criterion) {
     let mut server = AccountabilityServer::new(
         AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
@@ -71,7 +71,7 @@ fn verify_tag_bench(c: &mut Criterion) {
     let mut server = AccountabilityServer::new(
         AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
@@ -110,7 +110,7 @@ fn report_tag_bench(c: &mut Criterion) {
     let mut server = AccountabilityServer::new(
         AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,
@@ -376,7 +376,7 @@ fn end_to_end_bench(c: &mut Criterion) {
     let mut server = AccountabilityServer::new(
         AccServerParams {
             maximum_score: 100.0,
-            report_threashold: 10,
+            report_threshold: 10,
             epoch_duration: 24,
             tag_duration: 2,
             compute_score: None,

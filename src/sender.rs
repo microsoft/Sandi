@@ -132,7 +132,7 @@ mod tests {
         let mut accsvr = AccountabilityServer::new(
             AccServerParams {
                 maximum_score: 100.0,
-                report_threashold: 10,
+                report_threshold: 10,
                 epoch_start: 0,
                 epoch_duration: 24,
                 tag_duration: 2,
