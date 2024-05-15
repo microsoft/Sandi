@@ -14,6 +14,7 @@ pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
     pub epks: HashMap<i64, RistrettoPoint>,
+    pub vks_keys: HashMap<i64, Vec<Vec<u8>>>,
     pub score: f32,
     pub b_param: f32,
     pub report_count: Vec<i32>,
@@ -40,11 +41,33 @@ impl SenderRecord {
             id: sender_id,
             handles: vec![handle.to_string()],
             epks: HashMap::new(),
+            vks_keys: HashMap::new(),
             score: initial_score,
             b_param: 1.0,
             report_count: vec![0; num_epochs + 1],
             reported_tags: HashMap::new(),
             tokens: Vec::new(),
+        }
+    }
+
+    pub fn get_vks_key_count(&self, epoch: i64) -> usize {
+        match self.vks_keys.get(&epoch) {
+            Some(vks_keys) => vks_keys.len(),
+            None => 0,
+        }
+    }
+
+    pub fn add_vks_key(&mut self, epoch: i64, vks_key: Vec<u8>) {
+        if !self.vks_keys.contains_key(&epoch) {
+            self.vks_keys.insert(epoch, vec![]);
+        }
+
+        let vks_keys_opt = self.vks_keys.get_mut(&epoch);
+        match vks_keys_opt {
+            None => { panic!("VKs keys not found"); }
+            Some(vks_keys) => {
+                vks_keys.push(vks_key);
+            }
         }
     }
 }
@@ -114,6 +137,29 @@ impl SenderRecords {
             self.set_sender_epk(&id, epoch, epk)
         } else {
             return Err(SenderRecordError("Sender not found".to_string()))
+        }
+    }
+
+    pub(crate) fn add_vks_key(&mut self, sender_id: &SenderId, epoch: i64, vks_key: Vec<u8>) -> Result<(), SenderRecordError> {
+        // First find the sender
+        let sender_rec = self.records.get_mut(sender_id);
+        match sender_rec
+        {
+            None => return Err(SenderRecordError("Sender not found".to_string())),
+            Some(sender) => {
+                if !sender.vks_keys.contains_key(&epoch) {
+                    sender.vks_keys.insert(epoch, vec![]);
+                }
+
+                let vks_keys_opt = sender.vks_keys.get_mut(&epoch);
+                match vks_keys_opt {
+                    None => return Err(SenderRecordError("VKs keys not found".to_string())),
+                    Some(vks_keys) => {
+                        vks_keys.push(vks_key);
+                        Ok(())
+                    }
+                }
+            }
         }
     }
 

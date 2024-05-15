@@ -67,7 +67,7 @@ impl Sender {
     pub fn get_tag<R>(
         &self,
         receiver_handle: &str,
-        accountability_server: &AccountabilityServer,
+        accountability_server: &mut AccountabilityServer,
         rng: &mut R,
     ) -> Result<SenderTag, SenderError>
     where
@@ -136,6 +136,7 @@ mod tests {
                 epoch_start: 0,
                 epoch_duration: 24,
                 tag_duration: 2,
+                max_vks_per_epoch: 5,
                 compute_score: None,
                 noise_distribution: None,
             },
@@ -145,7 +146,7 @@ mod tests {
         let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
-        let tag_opt = sender.get_tag("Bob", &accsvr, &mut rng);
+        let tag_opt = sender.get_tag("Bob", &mut accsvr, &mut rng);
         assert!(tag_opt.is_ok());
 
         let tag = tag_opt.unwrap();

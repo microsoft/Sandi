@@ -70,6 +70,7 @@ mod tests {
                 epoch_start: 0,
                 epoch_duration: 24,
                 tag_duration: 2,
+                max_vks_per_epoch: 5,
                 compute_score: None,
                 noise_distribution: None,
             },
@@ -82,7 +83,7 @@ mod tests {
         // Ask for a tag
         let receiver_handle = "receiver";
         let tag = sender
-            .get_tag(receiver_handle, &accsvr, &mut rng)
+            .get_tag(receiver_handle, &mut accsvr, &mut rng)
             .unwrap();
 
         // Verify tag

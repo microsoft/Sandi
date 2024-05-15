@@ -39,6 +39,8 @@ pub struct AccServerParams {
     pub epoch_duration: usize,
     // Tag duration in epochs
     pub tag_duration: usize,
+    // Maximum number of verifying keys per sender per epoch
+    pub max_vks_per_epoch: usize,
     // Optional function to compute score category
     pub compute_score: Option<fn(f32, f32) -> i8>,
     // Optional distribution for differential privacy
@@ -151,7 +153,7 @@ impl AccountabilityServer {
     }
 
     pub fn issue_tag<R>(
-        &self,
+        &mut self,
         commitment_hr: &Vec<u8>,
         commitment_vks: &Vec<u8>,
         sender_handle: &str,
@@ -168,8 +170,17 @@ impl AccountabilityServer {
         if sender_opt.is_none() {
             return Err(AccSvrError("Sender not found".to_string()));
         }
-        let sender = sender_opt.unwrap();
+        let mut sender = sender_opt.unwrap();
 
+        // Check VKS limit
+        if sender.get_vks_key_count(epoch) >= self.params.max_vks_per_epoch {
+            return Err(AccSvrError("Maximum number of VKS keys reached".to_string()));
+        }
+
+        // Add VKS key
+        sender.add_vks_key(epoch, commitment_vks.clone());
+        self.sender_records.set_sender(sender.clone());
+        
         // PK for current epoch
         let epk_opt = sender.epks.get(&epoch);
         if epk_opt.is_none() {
@@ -438,6 +449,7 @@ mod tests {
                 epoch_start: 1614556800, // March 1, 2021 00:00:00
                 epoch_duration: 24,
                 tag_duration: 2,
+                max_vks_per_epoch: 5,
                 compute_score: None,
                 noise_distribution: None,
             },
@@ -461,7 +473,7 @@ mod tests {
             let sender_idx = idx as usize % 10;
             tags.push(
                 senders[sender_idx]
-                    .get_tag("receiver", &server, &mut rng)
+                    .get_tag("receiver", &mut server, &mut rng)
                     .unwrap(),
             );
         }
@@ -594,6 +606,7 @@ mod tests {
                 epoch_start: 1614556800, // March 1, 2021 00:00:00
                 epoch_duration: 24,
                 tag_duration: 2,
+                max_vks_per_epoch: 5,
                 compute_score: None,
                 noise_distribution: None,
             },
@@ -663,6 +676,7 @@ mod tests {
                 epoch_start,
                 epoch_duration: 24,
                 tag_duration: 2,
+                max_vks_per_epoch: 5,
                 compute_score: None,
                 noise_distribution: None,
             },
@@ -685,7 +699,7 @@ mod tests {
 
             // Generate tags for this epoch
             for _ in 0..250 {
-                let tag = sender.get_tag("receiver", &acc_svr, &mut rng).unwrap();
+                let tag = sender.get_tag("receiver", &mut acc_svr, &mut rng).unwrap();
                 tags.push(tag);
             }
         }
@@ -764,6 +778,7 @@ mod tests {
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
+            max_vks_per_epoch: 5,
             compute_score: Some(|score, _| {
                 if score < 0.0 {
                     return 0;
@@ -804,6 +819,7 @@ mod tests {
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
+            max_vks_per_epoch: 5,
             compute_score: None,
             noise_distribution: Some(Box::new(Gaussian::new(0.0, 1.0).unwrap())),
         };
@@ -825,6 +841,7 @@ mod tests {
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
+            max_vks_per_epoch: 5,
             compute_score: None,
             noise_distribution: Some(Box::new(Gaussian::new_max(0.0, 1.0, 0.0).unwrap())),
         };
@@ -845,6 +862,7 @@ mod tests {
             epoch_start: 1614556800, // March 1, 2021 00:00:00
             epoch_duration: 24,
             tag_duration: 2,
+            max_vks_per_epoch: 5,
             compute_score: None,
             noise_distribution: Some(Box::new(Gaussian::new_max(0.0, 1.0, -1.0).unwrap())),
         };
