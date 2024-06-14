@@ -21,32 +21,27 @@ pub fn verify_tag(
     verifying_key: &Vec<u8>,
     tag: &Vec<u8>,
 ) -> Result<i8, String> {
-    let full_tag = SenderTag::from_vec(tag);
+    let full_tag = SenderTag::from_vec(tag)?;
     let vks_point = CompressedRistretto::from_slice(vks)
         .unwrap()
         .decompress()
         .ok_or("Failed to decompress vks")?;
 
-    match full_tag {
-        Ok(full_tag) => {
-            let verif_result = tag_verifier::verify(
-                receiver_handle,
-                &vks_point,
-                &full_tag.tag,
-                &full_tag.randomness_hr,
-                &full_tag.randomness_vks,
-                &full_tag.proof,
-                &full_tag.r_big,
-                verifying_key,
-            );
-            match verif_result {
-                Ok(score) => return Ok(score),
-                Err(VerificationError(err_msg)) => {
-                    return Err(format!("Verification failed: {}", err_msg))
-                }
-            }
+    let verif_result = tag_verifier::verify(
+        receiver_handle,
+        &vks_point,
+        &full_tag.tag,
+        &full_tag.randomness_hr,
+        &full_tag.randomness_vks,
+        &full_tag.proof,
+        &full_tag.r_big,
+        verifying_key,
+    );
+    match verif_result {
+        Ok(score) => return Ok(score),
+        Err(VerificationError(err_msg)) => {
+            return Err(format!("Verification failed: {}", err_msg))
         }
-        Err(e) => return Err(format!("Failed to deserialize tag: {}", e)),
     }
 }
 
