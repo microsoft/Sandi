@@ -9,7 +9,7 @@ table Tag {
     commitment_hr: FixedBuffer32 (required);
     commitment_vks: FixedBuffer32 (required);
     expiration: int64;
-    score: int8;
+    score: uint8;
     enc_sender_id: FixedBuffer48 (required);
     q_big: FixedBuffer32 (required);
     g_prime: FixedBuffer32 (required);

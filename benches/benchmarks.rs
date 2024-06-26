@@ -23,7 +23,7 @@ fn get_tag_bench(c: &mut Criterion) {
         &mut rng,
     );
     let sender = Sender::new("sender1", &mut rng);
-    server.set_sender_pk(&sender.epk, &sender.handle);
+    server.set_sender_epk(&sender.epk, &sender.handle);
 
     let receiver_addr = "receiver_addr";
 
@@ -56,7 +56,7 @@ fn issue_tag_bench(c: &mut Criterion) {
 
     let sender_handle = "sender_handle";
     let sender = Sender::new(sender_handle, &mut rng);
-    server.set_sender_pk(&sender.epk, &sender.handle);
+    server.set_sender_epk(&sender.epk, &sender.handle);
 
     c.bench_function("issue_tag", |b| {
         b.iter(|| {
@@ -80,7 +80,7 @@ fn verify_tag_bench(c: &mut Criterion) {
         &mut rng,
     );
     let sender = Sender::new("sender1", &mut rng);
-    server.set_sender_pk(&sender.epk, &sender.handle);
+    server.set_sender_epk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
 
     let receiver_addr = "receiver_addr";
@@ -126,7 +126,7 @@ fn report_tag_bench(c: &mut Criterion) {
     for i in 0..NUM_SENDERS {
         let sender_handle = format!("sender{}", i);
         let sender = Sender::new(&sender_handle, &mut rng);
-        server.set_sender_pk(&sender.epk, &sender.handle);
+        server.set_sender_epk(&sender.epk, &sender.handle);
         senders.push(sender);
     }
 
@@ -385,7 +385,7 @@ fn end_to_end_bench(c: &mut Criterion) {
         &mut rng,
     );
     let sender = Sender::new("sender1", &mut rng);
-    server.set_sender_pk(&sender.epk, &sender.handle);
+    server.set_sender_epk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
     let sender_verifying_key = sender.get_verifying_key();
 

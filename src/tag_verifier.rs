@@ -22,7 +22,7 @@ pub fn verify(
     proof: &(Scalar, Scalar),
     r_big: &RistrettoPoint,
     as_vks: &Vec<u8>,
-) -> Result<i8, VerificationError> {
+) -> Result<u8, VerificationError> {
     if tag.exp_timestamp < Utc::now().timestamp() {
         // Tag is expired
         return Err(VerificationError("Tag is expired".to_string()));
@@ -105,7 +105,7 @@ mod tests {
             &mut rng,
         );
         let sender = Sender::new("sender", &mut rng);
-        let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         let tag = sender

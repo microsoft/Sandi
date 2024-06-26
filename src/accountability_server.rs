@@ -120,7 +120,7 @@ impl AccountabilityServer {
         }
     }
 
-    pub fn set_sender_pk(&mut self, epk: &RistrettoPoint, sender_handle: &str) -> Result<(), AccSvrError> {
+    pub fn set_sender_epk(&mut self, epk: &RistrettoPoint, sender_handle: &str) -> Result<(), AccSvrError> {
         // Get current epoch
         let epoch = get_epoch(self.time_provider.get_current_time(), self.params.epoch_duration.try_into().unwrap(), self.params.epoch_start);
         let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
@@ -357,9 +357,9 @@ impl AccountabilityServer {
 
     fn update_score(
         current_score: f64,
-        reported_tag_count: i32,
+        reported_tag_count: u32,
         maximum_score: f64,
-        report_threshold: i32,
+        report_threshold: u32,
         b: f64,
     ) -> f64 {
         if reported_tag_count >= report_threshold {
@@ -380,12 +380,12 @@ impl AccountabilityServer {
             // Add noise if necessary
             if let Some(dist) = self.params.noise_distribution.as_ref() {
                 let noise = dist.sample(rng);
-                report_count += noise;
+                report_count += noise as f64;
             }
 
             sender.score = AccountabilityServer::update_score(
                 sender.score,
-                report_count as i32,
+                report_count as u32,
                 self.params.maximum_score,
                 self.params.report_threshold,
                 sender.b_param,
@@ -461,7 +461,7 @@ mod tests {
         for i in 0..10 {
             let sender_handle = format!("sender{}", i);
             let sender = Sender::new(&sender_handle, &mut rng);
-            let set_pk_result = server.set_sender_pk(&sender.epk, &sender_handle);
+            let set_pk_result = server.set_sender_epk(&sender.epk, &sender_handle);
             assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
             senders.push(sender);
         }
@@ -622,7 +622,7 @@ mod tests {
         let commitment_vks = mac.finalize();
 
         let sender = Sender::new("sender1", &mut rng);
-        let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         let tag_res = accsvr.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &sender.handle, &mut rng);
@@ -694,7 +694,7 @@ mod tests {
 
             sender.generate_new_epoch_keys(&mut rng);
 
-            let set_pk_result = acc_svr.set_sender_pk(&sender.epk, &sender.handle);
+            let set_pk_result = acc_svr.set_sender_epk(&sender.epk, &sender.handle);
             assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
             // Generate tags for this epoch

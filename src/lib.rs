@@ -20,7 +20,7 @@ pub fn verify_tag(
     vks: &Vec<u8>,
     verifying_key: &Vec<u8>,
     tag: &Vec<u8>,
-) -> Result<i8, String> {
+) -> Result<u8, String> {
     let full_tag = SenderTag::from_vec(tag)?;
     let vks_point = CompressedRistretto::from_slice(vks)
         .unwrap()
@@ -72,7 +72,7 @@ mod tests {
             &mut rng,
         );
         let sender = Sender::new("sender1", &mut rng);
-        let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         // Ask for a tag

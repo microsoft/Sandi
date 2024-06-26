@@ -143,7 +143,7 @@ mod tests {
             &mut rng,
         );
         let sender = Sender::new("Alice", &mut rng);
-        let set_pk_result = accsvr.set_sender_pk(&sender.epk, &sender.handle);
+        let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         let tag_opt = sender.get_tag("Bob", &mut accsvr, &mut rng);
