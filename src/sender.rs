@@ -56,12 +56,12 @@ impl Sender {
     where
         R: CryptoRng + RngCore,
     {
-        let mut sk = [0u8; 32];
-        rng.fill_bytes(&mut sk);
-        let esk = Scalar::from_bytes_mod_order(sk);
-        let epk = G() * esk;
+        let mut sk_buff = [0u8; 32];
+        rng.fill_bytes(&mut sk_buff);
+        let sk = Scalar::from_bytes_mod_order(sk_buff);
+        let pk = G() * sk;
 
-        (epk, esk)
+        (pk, sk)
     }
 
     pub fn get_tag<R>(

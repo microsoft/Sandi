@@ -15,8 +15,8 @@ pub(crate) struct SenderRecord {
     pub handles: Vec<String>,
     pub epks: HashMap<i64, RistrettoPoint>,
     pub vks_keys: HashMap<i64, Vec<Vec<u8>>>,
-    pub score: f32,
-    pub b_param: f32,
+    pub score: f64,
+    pub b_param: f64,
     pub report_count: Vec<i32>,
     pub reported_tags: HashMap<Vec<u8>, Tag>,
     pub tokens: Vec<Token>,
@@ -30,7 +30,7 @@ pub(crate) struct SenderRecords {
 pub (crate) struct SenderRecordError(pub String);
 
 impl SenderRecord {
-    pub fn new<R>(handle: &str, num_epochs: usize, initial_score: f32, rng: &mut R) -> SenderRecord
+    pub fn new<R>(handle: &str, num_epochs: usize, initial_score: f64, rng: &mut R) -> SenderRecord
     where
         R: RngCore + CryptoRng,
     {

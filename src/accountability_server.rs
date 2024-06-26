@@ -30,9 +30,9 @@ pub struct AccountabilityServer {
 
 pub struct AccServerParams {
     // Maximum score a sender can have
-    pub maximum_score: f32,
+    pub maximum_score: f64,
     // Report threshold to affect score
-    pub report_threshold: i32,
+    pub report_threshold: u32,
     // Timestamp of the epoch start
     pub epoch_start: i64,
     // Epoch duration in hours
@@ -41,8 +41,8 @@ pub struct AccServerParams {
     pub tag_duration: usize,
     // Maximum number of verifying keys per sender per epoch
     pub max_vks_per_epoch: usize,
-    // Optional function to compute score category
-    pub compute_score: Option<fn(f32, f32) -> i8>,
+    // Optional function to compute reputation category
+    pub compute_reputation: Option<fn(f64, f64) -> u8>,
     // Optional distribution for differential privacy
     pub noise_distribution: Option<Box<Gaussian>>,
 }
@@ -51,7 +51,7 @@ pub struct AccServerParams {
 pub(crate) struct DefaultTimeProvider {}
 
 // Default function for computing score
-fn compute_score(sender_score: f32, max_score: f32) -> i8 {
+fn compute_reputation(sender_score: f64, max_score: f64) -> u8 {
     // We will have 5 categores: 0, 1, 2, 3, 4
     // 0: score <= max_score / 5
     // 1: score > max_score / 5 && score <= 2 * max_score / 5
@@ -145,10 +145,10 @@ impl AccountabilityServer {
         }
     }
 
-    fn compute_score(&self, sender: &SenderRecord) -> i8 {
-        match self.params.compute_score {
+    fn compute_reputation(&self, sender: &SenderRecord) -> u8 {
+        match self.params.compute_reputation {
             Some(f) => f(sender.score, self.params.maximum_score),
-            None => compute_score(sender.score, self.params.maximum_score),
+            None => compute_reputation(sender.score, self.params.maximum_score),
         }
     }
 
@@ -217,7 +217,7 @@ impl AccountabilityServer {
                 .num_seconds();
 
         // Compute score category
-        let score = self.compute_score(&sender);
+        let score = self.compute_reputation(&sender);
 
         // Then, we sign tag information
         let mut data_to_sign = Vec::new();
@@ -239,7 +239,7 @@ impl AccountabilityServer {
             commitment_hr: commitment_hr.clone(),
             commitment_vks: commitment_vks.clone(),
             exp_timestamp: expiration_date,
-            score: self.compute_score(&sender),
+            score: self.compute_reputation(&sender),
             enc_sender_id: encrypted_sender_id.to_vec(),
             q_big,
             g_prime,
@@ -356,26 +356,26 @@ impl AccountabilityServer {
     }
 
     fn update_score(
-        current_score: f32,
+        current_score: f64,
         reported_tag_count: i32,
-        maximum_score: f32,
+        maximum_score: f64,
         report_threshold: i32,
-        b: f32,
-    ) -> f32 {
+        b: f64,
+    ) -> f64 {
         if reported_tag_count >= report_threshold {
-            return current_score - (reported_tag_count - report_threshold) as f32;
+            return current_score - (reported_tag_count - report_threshold) as f64;
         } else if reported_tag_count < report_threshold && current_score >= 0.0 {
             return (current_score + b).min(maximum_score);
         } else {
             assert!(reported_tag_count < report_threshold && current_score < 0.0);
-            return (current_score - (reported_tag_count - report_threshold) as f32).min(0.0);
+            return (current_score - (reported_tag_count - report_threshold) as f64).min(0.0);
         }
     }
 
     pub fn update_scores<R>(&mut self, rng: &mut R)
     where R: RngCore + CryptoRng {
         self.sender_records.for_each(|sender| {
-            let mut report_count = sender.report_count[0] as f32;
+            let mut report_count = sender.report_count[0] as f64;
         
             // Add noise if necessary
             if let Some(dist) = self.params.noise_distribution.as_ref() {
@@ -450,7 +450,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 max_vks_per_epoch: 5,
-                compute_score: None,
+                compute_reputation: None,
                 noise_distribution: None,
             },
             &mut rng,
@@ -607,7 +607,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 max_vks_per_epoch: 5,
-                compute_score: None,
+                compute_reputation: None,
                 noise_distribution: None,
             },
             &mut rng,
@@ -654,7 +654,7 @@ mod tests {
     }
 
     #[test]
-    fn compute_score_with_epochs_test() {
+    fn compute_reputation_with_epochs_test() {
         let mut rng = OsRng;
         let time_provider = Box::new(MockTimeProvider {});
 
@@ -677,7 +677,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 max_vks_per_epoch: 5,
-                compute_score: None,
+                compute_reputation: None,
                 noise_distribution: None,
             },
             &mut rng,
@@ -731,42 +731,42 @@ mod tests {
     }
 
     #[test]
-    fn compute_score_category_test()
+    fn compute_reputation_category_test()
     {
-        let score = compute_score(0.0, 100.0);
+        let score = compute_reputation(0.0, 100.0);
         assert_eq!(score, 0);
 
-        let score = compute_score(19.0, 100.0);
+        let score = compute_reputation(19.0, 100.0);
         assert_eq!(score, 0);
 
-        let score = compute_score(20.0, 100.0);
+        let score = compute_reputation(20.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = compute_score(39.0, 100.0);
+        let score = compute_reputation(39.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = compute_score(40.0, 100.0);
+        let score = compute_reputation(40.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = compute_score(59.0, 100.0);
+        let score = compute_reputation(59.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = compute_score(60.0, 100.0);
+        let score = compute_reputation(60.0, 100.0);
         assert_eq!(score, 3);
 
-        let score = compute_score(79.0, 100.0);
+        let score = compute_reputation(79.0, 100.0);
         assert_eq!(score, 3);
 
-        let score = compute_score(80.0, 100.0);
+        let score = compute_reputation(80.0, 100.0);
         assert_eq!(score, 4);
 
-        let score = compute_score(99.0, 100.0);
+        let score = compute_reputation(99.0, 100.0);
         assert_eq!(score, 4);
 
-        let score = compute_score(100.0, 100.0);
+        let score = compute_reputation(100.0, 100.0);
         assert_eq!(score, 4);
 
-        let score = compute_score(-10.0, 100.0);
+        let score = compute_reputation(-10.0, 100.0);
         assert_eq!(score, 0);
     }
 
@@ -779,7 +779,7 @@ mod tests {
             epoch_duration: 24,
             tag_duration: 2,
             max_vks_per_epoch: 5,
-            compute_score: Some(|score, _| {
+            compute_reputation: Some(|score, _| {
                 if score < 0.0 {
                     return 0;
                 }
@@ -794,19 +794,19 @@ mod tests {
             noise_distribution: None,
         };
 
-        let score = params.compute_score.unwrap()(0.0, 100.0);
+        let score = params.compute_reputation.unwrap()(0.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = params.compute_score.unwrap()(49.0, 100.0);
+        let score = params.compute_reputation.unwrap()(49.0, 100.0);
         assert_eq!(score, 1);
 
-        let score = params.compute_score.unwrap()(50.0, 100.0);
+        let score = params.compute_reputation.unwrap()(50.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = params.compute_score.unwrap()(99.0, 100.0);
+        let score = params.compute_reputation.unwrap()(99.0, 100.0);
         assert_eq!(score, 2);
 
-        let score = params.compute_score.unwrap()(100.0, 100.0);
+        let score = params.compute_reputation.unwrap()(100.0, 100.0);
         assert_eq!(score, 3);
     }
 
@@ -820,7 +820,7 @@ mod tests {
             epoch_duration: 24,
             tag_duration: 2,
             max_vks_per_epoch: 5,
-            compute_score: None,
+            compute_reputation: None,
             noise_distribution: Some(Box::new(Gaussian::new(0.0, 1.0).unwrap())),
         };
 
@@ -842,7 +842,7 @@ mod tests {
             epoch_duration: 24,
             tag_duration: 2,
             max_vks_per_epoch: 5,
-            compute_score: None,
+            compute_reputation: None,
             noise_distribution: Some(Box::new(Gaussian::new_max(0.0, 1.0, 0.0).unwrap())),
         };
 
@@ -863,7 +863,7 @@ mod tests {
             epoch_duration: 24,
             tag_duration: 2,
             max_vks_per_epoch: 5,
-            compute_score: None,
+            compute_reputation: None,
             noise_distribution: Some(Box::new(Gaussian::new_max(0.0, 1.0, -1.0).unwrap())),
         };
 

@@ -8,7 +8,7 @@ pub struct Tag {
     pub commitment_hr: Vec<u8>,
     pub commitment_vks: Vec<u8>,
     pub exp_timestamp: i64,
-    pub score: i8,
+    pub score: u8,
     pub enc_sender_id: Vec<u8>,
     pub q_big: RistrettoPoint,
     pub g_prime: RistrettoPoint,

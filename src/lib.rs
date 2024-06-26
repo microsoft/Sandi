@@ -38,7 +38,7 @@ pub fn verify_tag(
         verifying_key,
     );
     match verif_result {
-        Ok(score) => return Ok(score),
+        Ok(reputation) => return Ok(reputation),
         Err(VerificationError(err_msg)) => {
             return Err(format!("Verification failed: {}", err_msg))
         }
