@@ -25,11 +25,11 @@ fn get_tag_bench(c: &mut Criterion) {
     let sender = Sender::new("sender1", &mut rng);
     server.set_sender_pk(&sender.epk, &sender.handle);
 
-    let receiver_handle = "receiver_handle";
+    let receiver_addr = "receiver_addr";
 
     c.bench_function("get_tag", |b| {
         b.iter(|| {
-            let result = sender.get_tag(&receiver_handle, &server, &mut rng);
+            let result = sender.get_tag(&receiver_addr, &server, &mut rng);
             assert!(result.is_ok());
         })
     });
@@ -83,16 +83,16 @@ fn verify_tag_bench(c: &mut Criterion) {
     server.set_sender_pk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
 
-    let receiver_handle = "receiver_handle";
+    let receiver_addr = "receiver_addr";
 
     let tag = sender
-        .get_tag(receiver_handle, &server, &mut rng)
+        .get_tag(receiver_addr, &server, &mut rng)
         .unwrap();
 
     c.bench_function("verify_tag", |b| {
         b.iter(|| {
             let _ = tag_verifier::verify(
-                receiver_handle,
+                receiver_addr,
                 sender.get_verifying_key(),
                 &tag.tag,
                 &tag.randomness_hr,
@@ -130,14 +130,14 @@ fn report_tag_bench(c: &mut Criterion) {
         senders.push(sender);
     }
 
-    let receiver_handle = "receiver_handle";
+    let receiver_addr = "receiver_addr";
 
     // Get NUM_SENDERS tags
     let mut tags: Vec<SenderTag> = Vec::new();
     for idx in 0..NUM_SENDERS {
         tags.push(
             senders[idx]
-                .get_tag(receiver_handle, &server, &mut rng)
+                .get_tag(receiver_addr, &server, &mut rng)
                 .unwrap(),
         );
     }
@@ -389,15 +389,15 @@ fn end_to_end_bench(c: &mut Criterion) {
     let verifying_key = server.get_verifying_key();
     let sender_verifying_key = sender.get_verifying_key();
 
-    let receiver_handle = "receiver_handle";
+    let receiver_addr = "receiver_addr";
 
     c.bench_function("end_to_end", |b| {
         b.iter(|| {
             let tag = sender
-                .get_tag(receiver_handle, &server, &mut rng)
+                .get_tag(receiver_addr, &server, &mut rng)
                 .unwrap();
             let _ = tag_verifier::verify(
-                receiver_handle,
+                receiver_addr,
                 &sender_verifying_key,
                 &tag.tag,
                 &tag.randomness_hr,

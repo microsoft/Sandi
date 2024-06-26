@@ -66,7 +66,7 @@ impl Sender {
 
     pub fn get_tag<R>(
         &self,
-        receiver_handle: &str,
+        receiver_addr: &str,
         accountability_server: &mut AccountabilityServer,
         rng: &mut R,
     ) -> Result<SenderTag, SenderError>
@@ -76,7 +76,7 @@ impl Sender {
         let mut randomness_hr = [0u8; 32];
         rng.fill_bytes(&mut randomness_hr);
         let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_hr).unwrap();
-        mac.update(receiver_handle.as_bytes());
+        mac.update(receiver_addr.as_bytes());
         let commitment_hr = mac.finalize();
 
         let mut randomness_vks = [0u8; 32];

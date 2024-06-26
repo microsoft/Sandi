@@ -14,7 +14,7 @@ use sha2::Sha256;
 pub struct VerificationError(pub String);
 
 pub fn verify(
-    receiver_handle: &str,
+    receiver_addr: &str,
     vks: &RistrettoPoint,
     tag: &Tag,
     randomness_hr: &Vec<u8>,
@@ -47,7 +47,7 @@ pub fn verify(
     let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_hr)
         .map_err(|_| VerificationError("Invalid randomness receiver".to_string()))?;
 
-    mac.update(receiver_handle.as_bytes());
+    mac.update(receiver_addr.as_bytes());
     let commitment = mac.finalize();
 
     if commitment.into_bytes().to_vec() != tag.commitment_hr {
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn verify_tag_test() {
-        let receiver_handle = "receiver";
+        let receiver_addr = "receiver";
         let mut rng = OsRng;
         let mut accsvr = AccountabilityServer::new(
             AccServerParams {
@@ -109,12 +109,12 @@ mod tests {
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         let tag = sender
-            .get_tag(receiver_handle, &mut accsvr, &mut rng)
+            .get_tag(receiver_addr, &mut accsvr, &mut rng)
             .unwrap();
 
         // Tag should be valid
         let verif_result = verify(
-            receiver_handle,
+            receiver_addr,
             &sender.get_verifying_key(),
             &tag.tag,
             &tag.randomness_hr,

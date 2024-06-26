@@ -16,7 +16,7 @@ pub mod utils;
 pub mod gaussian;
 
 pub fn verify_tag(
-    receiver_handle: &str,
+    receiver_addr: &str,
     vks: &Vec<u8>,
     verifying_key: &Vec<u8>,
     tag: &Vec<u8>,
@@ -28,7 +28,7 @@ pub fn verify_tag(
         .ok_or("Failed to decompress vks")?;
 
     let verif_result = tag_verifier::verify(
-        receiver_handle,
+        receiver_addr,
         &vks_point,
         &full_tag.tag,
         &full_tag.randomness_hr,
@@ -76,16 +76,16 @@ mod tests {
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         // Ask for a tag
-        let receiver_handle = "receiver";
+        let receiver_addr = "receiver";
         let tag = sender
-            .get_tag(receiver_handle, &mut accsvr, &mut rng)
+            .get_tag(receiver_addr, &mut accsvr, &mut rng)
             .unwrap();
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
         let vks = sender.get_verifying_key();
         let verif_result = tag_verifier::verify(
-            &receiver_handle,
+            &receiver_addr,
             vks,
             &tag.tag,
             &tag.randomness_hr,
