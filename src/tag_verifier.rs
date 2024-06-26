@@ -21,7 +21,7 @@ pub fn verify(
     randomness_vks: &Vec<u8>,
     proof: &(Scalar, Scalar),
     r_big: &RistrettoPoint,
-    verifying_key: &Vec<u8>,
+    as_vks: &Vec<u8>,
 ) -> Result<i8, VerificationError> {
     if tag.exp_timestamp < Utc::now().timestamp() {
         // Tag is expired
@@ -30,7 +30,7 @@ pub fn verify(
 
     // Verify signature
     let verif_key =
-        verifying_key_from_vec(verifying_key).map_err(|err_msg| VerificationError(err_msg))?;
+        verifying_key_from_vec(as_vks).map_err(|err_msg| VerificationError(err_msg))?;
 
     let signature_result = verify_signature(tag, &verif_key);
     match signature_result {
@@ -99,7 +99,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 max_vks_per_epoch: 5,
-                compute_score: None,
+                compute_reputation: None,
                 noise_distribution: None,
             },
             &mut rng,
