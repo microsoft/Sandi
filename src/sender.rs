@@ -137,7 +137,7 @@ mod tests {
                 epoch_duration: 24,
                 tag_duration: 2,
                 max_vks_per_epoch: 5,
-                compute_score: None,
+                compute_reputation: None,
                 noise_distribution: None,
             },
             &mut rng,
