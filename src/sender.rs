@@ -14,8 +14,14 @@ pub struct Sender {
     pub handle: String,
     pub epk: RistrettoPoint,
     esk: Scalar,
+    channels: Vec<SenderChannel>,
+}
+
+#[derive(Clone)]
+pub struct SenderChannel {
+    pub receiver_addr: String,
     pub vks: RistrettoPoint,
-    sks: Scalar,
+    pub sks: Scalar,
 }
 
 #[derive(Debug)]
@@ -27,19 +33,41 @@ impl Sender {
         R: CryptoRng + RngCore,
     {
         let (epk, esk) = Sender::generate_keypair(rng);
-        let (vks, sks) = Sender::generate_keypair(rng);
 
         Sender {
             handle: handle.to_owned(),
             esk,
             epk,
-            sks,
-            vks,
+            channels: Vec::new(),
         }
     }
 
-    pub fn get_verifying_key(&self) -> &RistrettoPoint {
-        &self.vks
+    pub(crate) fn get_channels(&self, receiver_addr: &str) -> Vec<&SenderChannel> {
+        let mut channels = Vec::new();
+
+        for channel in &self.channels {
+            if channel.receiver_addr == receiver_addr {
+                channels.push(channel);
+            }
+        }
+
+        channels
+    }
+
+    pub fn add_channel<R>(&mut self, receiver_addr: &str, rng: &mut R) -> SenderChannel
+    where
+        R: CryptoRng + RngCore,
+    {
+        let (vks, sks) = Sender::generate_keypair(rng);
+
+        let channel = SenderChannel {
+            receiver_addr: receiver_addr.to_owned(),
+            vks,
+            sks,
+        };
+
+        self.channels.push(channel.clone());
+        channel
     }
 
     pub fn generate_new_epoch_keys<R>(&mut self, rng: &mut R)
@@ -66,7 +94,7 @@ impl Sender {
 
     pub fn get_tag<R>(
         &self,
-        receiver_addr: &str,
+        channel: &SenderChannel,
         accountability_server: &mut AccountabilityServer,
         rng: &mut R,
     ) -> Result<SenderTag, SenderError>
@@ -76,13 +104,13 @@ impl Sender {
         let mut randomness_hr = [0u8; 32];
         rng.fill_bytes(&mut randomness_hr);
         let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_hr).unwrap();
-        mac.update(receiver_addr.as_bytes());
+        mac.update(channel.receiver_addr.as_bytes());
         let commitment_hr = mac.finalize();
 
         let mut randomness_vks = [0u8; 32];
         rng.fill_bytes(&mut randomness_vks);
         let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_vks).unwrap();
-        mac.update(self.vks.compress().as_bytes());
+        mac.update(channel.vks.compress().as_bytes());
         let commitment_vks = mac.finalize();
 
         let tag_res =
@@ -110,7 +138,7 @@ impl Sender {
                     tag,
                     randomness_hr: randomness_hr.to_vec(),
                     randomness_vks: randomness_vks.to_vec(),
-                    vks: self.vks,
+                    vks: channel.vks,
                     proof: z,
                     r_big,
                 })
@@ -142,11 +170,13 @@ mod tests {
             },
             &mut rng,
         );
-        let sender = Sender::new("Alice", &mut rng);
+        let mut sender = Sender::new("Alice", &mut rng);
         let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
-        let tag_opt = sender.get_tag("Bob", &mut accsvr, &mut rng);
+        let channel = sender.add_channel("Bob", &mut rng);
+
+        let tag_opt = sender.get_tag(&channel, &mut accsvr, &mut rng);
         assert!(tag_opt.is_ok());
 
         let tag = tag_opt.unwrap();

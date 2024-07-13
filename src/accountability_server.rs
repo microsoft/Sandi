@@ -471,9 +471,18 @@ mod tests {
         for idx in 0..1000 {
             // Get a random sender
             let sender_idx = idx as usize % 10;
+            let sender = &mut senders[sender_idx];
+            let channel;
+            let channels = sender.get_channels("receiver");
+            if channels.len() == 0 {
+                channel = sender.add_channel("receiver", &mut rng);
+            } else {
+                channel = channels[0].clone();
+            }
+
             tags.push(
-                senders[sender_idx]
-                    .get_tag("receiver", &mut server, &mut rng)
+                sender
+                    .get_tag(&channel, &mut server, &mut rng)
                     .unwrap(),
             );
         }
@@ -697,9 +706,17 @@ mod tests {
             let set_pk_result = acc_svr.set_sender_epk(&sender.epk, &sender.handle);
             assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
+            let channel;
+            let channels = sender.get_channels("receiver");
+            if channels.len() == 0 {
+                channel = sender.add_channel("receiver", &mut rng);
+            } else {
+                channel = channels[0].clone();
+            }
+
             // Generate tags for this epoch
             for _ in 0..250 {
-                let tag = sender.get_tag("receiver", &mut acc_svr, &mut rng).unwrap();
+                let tag = sender.get_tag(&channel, &mut acc_svr, &mut rng).unwrap();
                 tags.push(tag);
             }
         }

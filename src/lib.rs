@@ -71,19 +71,21 @@ mod tests {
             },
             &mut rng,
         );
-        let sender = Sender::new("sender1", &mut rng);
+        let mut sender = Sender::new("sender1", &mut rng);
         let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
         // Ask for a tag
         let receiver_addr = "receiver";
+        let channel = sender.add_channel(receiver_addr, &mut rng);
+
         let tag = sender
-            .get_tag(receiver_addr, &mut accsvr, &mut rng)
+            .get_tag(&channel, &mut accsvr, &mut rng)
             .unwrap();
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
-        let vks = sender.get_verifying_key();
+        let vks = &channel.vks;
         let verif_result = tag_verifier::verify(
             &receiver_addr,
             vks,
