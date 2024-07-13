@@ -363,12 +363,12 @@ impl AccountabilityServer {
         b: f64,
     ) -> f64 {
         if reported_tag_count >= report_threshold {
-            return current_score - (reported_tag_count - report_threshold) as f64;
+            return current_score - (reported_tag_count as i32 - report_threshold as i32) as f64;
         } else if reported_tag_count < report_threshold && current_score >= 0.0 {
             return (current_score + b).min(maximum_score);
         } else {
             assert!(reported_tag_count < report_threshold && current_score < 0.0);
-            return (current_score - (reported_tag_count - report_threshold) as f64).min(0.0);
+            return (current_score - (reported_tag_count as i32 - report_threshold as i32) as f64).min(0.0);
         }
     }
 
