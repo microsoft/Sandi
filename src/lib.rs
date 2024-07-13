@@ -1,4 +1,4 @@
-use curve25519_dalek::ristretto::CompressedRistretto;
+use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use sender_tag::SenderTag;
 use tag_verifier::VerificationError;
 
@@ -22,10 +22,15 @@ pub fn verify_tag(
     tag: &Vec<u8>,
 ) -> Result<u8, String> {
     let full_tag = SenderTag::from_vec(tag)?;
-    let vks_point = CompressedRistretto::from_slice(vks)
-        .unwrap()
-        .decompress()
-        .ok_or("Failed to decompress vks")?;
+    let compressed_vks = CompressedRistretto::from_slice(vks);
+    let vks_point: RistrettoPoint;
+
+    match compressed_vks {
+        Ok(compressed_vks) => {
+            vks_point = compressed_vks.decompress().ok_or("Failed to decompress vks")?;
+        }
+        Err(err) => return Err(format!("Failed to decompress vks: {}", err.to_string())),
+    }
 
     let verif_result = tag_verifier::verify(
         receiver_addr,
@@ -37,6 +42,7 @@ pub fn verify_tag(
         &full_tag.r_big,
         verifying_key,
     );
+    
     match verif_result {
         Ok(reputation) => return Ok(reputation),
         Err(VerificationError(err_msg)) => {
