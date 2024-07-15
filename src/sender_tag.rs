@@ -4,14 +4,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     serialization::{FixedBuffer32, FixedBuffer48, FixedBuffer64},
-    tag::Tag,
+    tag::{EncSenderId, Tag, TagSignature},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SenderTag {
     pub tag: Tag,
-    pub randomness_hr: Vec<u8>,
-    pub randomness_vks: Vec<u8>,
+    pub randomness_hr: [u8; 32],
+    pub randomness_vks: [u8; 32],
     pub vks: RistrettoPoint,
     pub proof: (Scalar, Scalar),
     pub r_big: RistrettoPoint,
@@ -22,8 +22,8 @@ impl SenderTag {
         let mut builder = FlatBufferBuilder::new();
         let commitment_hr = &FixedBuffer32(self.tag.commitment_hr.clone().try_into().unwrap());
         let commitment_vks = &FixedBuffer32(self.tag.commitment_vks.clone().try_into().unwrap());
-        let enc_sender_id = &FixedBuffer48(self.tag.enc_sender_id.clone().try_into().unwrap());
-        let signature = &FixedBuffer64(self.tag.signature.clone().try_into().unwrap());
+        let enc_sender_id = &FixedBuffer48(self.tag.enc_sender_id.0.clone().try_into().unwrap());
+        let signature = &FixedBuffer64(self.tag.signature.0.clone().try_into().unwrap());
         let q_big = &FixedBuffer32(self.tag.q_big.compress().to_bytes());
         let g_prime = &FixedBuffer32(self.tag.g_prime.compress().to_bytes());
         let x_big = &FixedBuffer32(self.tag.x_big.compress().to_bytes());
@@ -67,11 +67,11 @@ impl SenderTag {
         }
 
         let full_tag = full_tag.unwrap();
-        let commitment_hr = full_tag.commitment_hr().0.to_vec();
-        let commitment_vks = full_tag.commitment_vks().0.to_vec();
+        let commitment_hr = full_tag.commitment_hr().0;
+        let commitment_vks = full_tag.commitment_vks().0;
         let exp_timestamp = full_tag.expiration();
         let score = full_tag.score();
-        let enc_sender_id = full_tag.enc_sender_id().0.to_vec();
+        let enc_sender_id = full_tag.enc_sender_id().0;
         let q_big = CompressedRistretto::from_slice(&full_tag.q_big().0)
             .unwrap()
             .decompress()
@@ -84,9 +84,9 @@ impl SenderTag {
             .unwrap()
             .decompress()
             .ok_or("Failed to decompress x_big")?;
-        let signature = full_tag.signature().0.to_vec();
-        let randomness_hr = full_tag.randomness_hr().0.to_vec();
-        let randomness_vks = full_tag.randomness_vks().0.to_vec();
+        let signature = full_tag.signature().0;
+        let randomness_hr = full_tag.randomness_hr().0;
+        let randomness_vks = full_tag.randomness_vks().0;
         let vks = CompressedRistretto::from_slice(&full_tag.vks().0)
             .unwrap()
             .decompress()
@@ -103,11 +103,11 @@ impl SenderTag {
             commitment_vks,
             exp_timestamp,
             score,
-            enc_sender_id,
+            enc_sender_id: EncSenderId(enc_sender_id),
             q_big,
             g_prime,
             x_big,
-            signature,
+            signature: TagSignature(signature),
         };
 
         Ok(SenderTag {
@@ -132,21 +132,21 @@ mod tests {
     fn full_tag_serialization_test() {
         let mut rng = OsRng;
         let tag = Tag {
-            commitment_hr: vec![0; 32],
-            commitment_vks: vec![0; 32],
+            commitment_hr: [0; 32],
+            commitment_vks: [0; 32],
             exp_timestamp: 0,
             score: 0,
-            enc_sender_id: vec![0; 48],
+            enc_sender_id: EncSenderId([0; 48]),
             q_big: random_point(&mut rng),
             g_prime: random_point(&mut rng),
             x_big: random_point(&mut rng),
-            signature: vec![0; 64],
+            signature: TagSignature([0; 64]),
         };
 
         let full_tag = SenderTag {
             tag,
-            randomness_hr: vec![0; 32],
-            randomness_vks: vec![0; 32],
+            randomness_hr: [0; 32],
+            randomness_vks: [0; 32],
             vks: random_point(&mut rng),
             proof: (random_scalar(&mut rng), random_scalar(&mut rng)),
             r_big: random_point(&mut rng),
@@ -158,17 +158,17 @@ mod tests {
         let deserialized_tag = SenderTag::from_slice(&serialized_tag);
         assert!(deserialized_tag.is_ok());
         let deserialized_tag = deserialized_tag.unwrap();
-        assert_eq!(deserialized_tag.tag.commitment_hr, vec![0; 32]);
-        assert_eq!(deserialized_tag.tag.commitment_vks, vec![0; 32]);
+        assert_eq!(deserialized_tag.tag.commitment_hr, [0; 32]);
+        assert_eq!(deserialized_tag.tag.commitment_vks, [0; 32]);
         assert_eq!(deserialized_tag.tag.exp_timestamp, 0);
         assert_eq!(deserialized_tag.tag.score, 0);
-        assert_eq!(deserialized_tag.tag.enc_sender_id, vec![0; 48]);
+        assert_eq!(deserialized_tag.tag.enc_sender_id, EncSenderId([0; 48]));
         assert_eq!(deserialized_tag.tag.q_big, full_tag.tag.q_big);
         assert_eq!(deserialized_tag.tag.g_prime, full_tag.tag.g_prime);
         assert_eq!(deserialized_tag.tag.x_big, full_tag.tag.x_big);
-        assert_eq!(deserialized_tag.tag.signature, vec![0; 64]);
-        assert_eq!(deserialized_tag.randomness_hr, vec![0; 32]);
-        assert_eq!(deserialized_tag.randomness_vks, vec![0; 32]);
+        assert_eq!(deserialized_tag.tag.signature, TagSignature([0; 64]));
+        assert_eq!(deserialized_tag.randomness_hr, [0; 32]);
+        assert_eq!(deserialized_tag.randomness_vks, [0; 32]);
         assert_eq!(deserialized_tag.vks, full_tag.vks);
         assert_eq!(deserialized_tag.proof, full_tag.proof);
         assert_eq!(deserialized_tag.r_big, full_tag.r_big);

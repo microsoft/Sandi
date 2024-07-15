@@ -115,14 +115,14 @@ pub fn verify_signature(
     data_to_sign.extend_from_slice(&tag.commitment_vks);
     data_to_sign.extend_from_slice(tag.exp_timestamp.to_be_bytes().as_slice());
     data_to_sign.extend_from_slice(tag.score.to_be_bytes().as_slice());
-    data_to_sign.extend_from_slice(&tag.enc_sender_id);
+    data_to_sign.extend_from_slice(&tag.enc_sender_id.0);
     data_to_sign.extend_from_slice(basepoint_order().as_bytes());
     data_to_sign.extend_from_slice(G().compress().as_bytes());
     data_to_sign.extend_from_slice(tag.q_big.compress().as_bytes());
     data_to_sign.extend_from_slice(tag.g_prime.compress().as_bytes());
     data_to_sign.extend_from_slice(tag.x_big.compress().as_bytes());
 
-    let sigbytes: [u8; 64] = tag.signature[..64]
+    let sigbytes: [u8; 64] = tag.signature.0[..64]
         .try_into()
         .map_err(|_| SignatureVerificationError("Invalid signature".to_string()))?;
 
@@ -153,12 +153,12 @@ pub fn verifying_key_from_slice(vk: &[u8]) -> Result<VerifyingKey, String> {
     Ok(verifying_key)
 }
 
-pub fn concat_id_and_scalars(id: &SenderId, n: &[u8; 8], r: &Scalar) -> Vec<u8> {
+pub fn concat_id_and_scalars(id: &SenderId, n: &[u8; 8], r: &Scalar) -> [u8; 48] {
     // Order will be: r | n | ID
-    let mut result = Vec::new();
-    result.extend_from_slice(r.as_bytes());
-    result.extend_from_slice(n);
-    result.extend_from_slice(id);
+    let mut result = [0u8; 48];
+    result[..32].copy_from_slice(r.as_bytes());
+    result[32..40].copy_from_slice(n);
+    result[40..].copy_from_slice(id.as_slice());
     result
 }
 

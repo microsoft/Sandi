@@ -18,7 +18,7 @@ pub(crate) struct SenderRecord {
     pub score: f64,
     pub b_param: f64,
     pub report_count: Vec<i32>,
-    pub reported_tags: HashMap<Vec<u8>, Tag>,
+    pub reported_tags: HashMap<[u8; 64], Tag>,
     pub tokens: Vec<Token>,
 }
 

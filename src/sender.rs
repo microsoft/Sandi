@@ -136,8 +136,8 @@ impl Sender {
 
                 Ok(SenderTag {
                     tag,
-                    randomness_hr: randomness_hr.to_vec(),
-                    randomness_vks: randomness_vks.to_vec(),
+                    randomness_hr,
+                    randomness_vks,
                     vks: channel.vks,
                     proof: z,
                     r_big,
@@ -182,6 +182,6 @@ mod tests {
         let tag = tag_opt.unwrap();
 
         let binary: heapless::Vec<u8, 600> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 476);
+        assert_eq!(binary.len(), 472);
     }
 }

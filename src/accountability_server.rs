@@ -1,7 +1,7 @@
 use crate::gaussian::{Gaussian, NoiseDistribution};
 use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
-use crate::tag::Tag;
+use crate::tag::{EncSenderId, Tag, TagSignature};
 use crate::utils::{
     basepoint_order, concat_id_and_scalars, decrypt, encrypt,
     random_scalar, verify_signature, SignatureVerificationError, G,
@@ -221,8 +221,8 @@ impl AccountabilityServer {
 
         // Then, we sign tag information
         let mut data_to_sign = Vec::new();
-        data_to_sign.extend_from_slice(&commitment_hr);
-        data_to_sign.extend_from_slice(&commitment_vks);
+        data_to_sign.extend_from_slice(commitment_hr);
+        data_to_sign.extend_from_slice(commitment_vks);
         data_to_sign.extend_from_slice(expiration_date.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(score.to_be_bytes().as_slice());
         data_to_sign.extend_from_slice(&encrypted_sender_id);
@@ -234,17 +234,20 @@ impl AccountabilityServer {
 
         let signature = self.signing_key.sign(&data_to_sign);
 
+        let commitment_hr_array: [u8; 32] = commitment_hr.try_into().expect("commitment_hr is not 32 bytes long");
+        let commitment_vks_array: [u8; 32] = commitment_vks.try_into().expect("commitment_vks is not 32 bytes long");
+
         // Finally, we create the tag
         let tag = Tag {
-            commitment_hr: commitment_hr.to_vec(),
-            commitment_vks: commitment_vks.to_vec(),
+            commitment_hr: commitment_hr_array,
+            commitment_vks: commitment_vks_array,
             exp_timestamp: expiration_date,
             score: self.compute_reputation(&sender),
-            enc_sender_id: encrypted_sender_id.to_vec(),
+            enc_sender_id: EncSenderId(encrypted_sender_id),
             q_big,
             g_prime,
             x_big,
-            signature: signature.to_vec(),
+            signature: TagSignature(signature.to_bytes()),
         };
 
         Ok(tag)
@@ -295,19 +298,19 @@ impl AccountabilityServer {
 
         // Sender Id + n + r
         let scalar_length = Scalar::ONE.as_bytes().len();
-        if tag.enc_sender_id.len() != 8 + scalar_length + 8 {
+        if tag.enc_sender_id.0.len() != 8 + scalar_length + 8 {
             return Err(AccSvrError("Invalid sender id".to_string()));
         }
 
         let mut decrypted_sender_id = tag.enc_sender_id.clone();
-        decrypt(&self.enc_secret_key, &mut decrypted_sender_id);
+        decrypt(&self.enc_secret_key, &mut decrypted_sender_id.0);
         // Order is: r | n | ID
         let mut sender_id = SenderId::default();
-        sender_id.copy_from_slice(&decrypted_sender_id[40..48]);
+        sender_id.copy_from_slice(&decrypted_sender_id.0[40..48]);
         let mut n = [0u8; 8];
-        n.copy_from_slice(&decrypted_sender_id[32..40]);
+        n.copy_from_slice(&decrypted_sender_id.0[32..40]);
         let mut r_buff = [0u8; 32];
-        r_buff.copy_from_slice(&decrypted_sender_id[0..32]);
+        r_buff.copy_from_slice(&decrypted_sender_id.0[0..32]);
         let r = Scalar::from_canonical_bytes(r_buff).unwrap();
         let inv_r = r.invert();
 
@@ -316,7 +319,7 @@ impl AccountabilityServer {
         let sender_opt = self.sender_records.get_sender_by_id(&sender_id);
         match sender_opt {
             Some(mut sender) => {
-                if sender.reported_tags.contains_key(&tag.signature) {
+                if sender.reported_tags.contains_key(&tag.signature.0) {
                     // Tag is already reported, no need to do anything
                     return Ok(());
                 }
@@ -341,7 +344,7 @@ impl AccountabilityServer {
                 }
 
                 // Tag is valid, so we add it to the unprocessed tags
-                sender.reported_tags.insert(tag.signature.clone(), tag);
+                sender.reported_tags.insert(tag.signature.0.clone(), tag);
                 sender.tokens.push((n, sigma));
                 sender.report_count[counter_idx] += 1;
 
@@ -399,7 +402,7 @@ impl AccountabilityServer {
             sender.report_count[rep_count] = 0;
 
             // Get rid of expired tags
-            let mut expired_tags: Vec<Vec<u8>> = Vec::new();
+            let mut expired_tags: Vec<[u8; 64]> = Vec::new();
             for (signature, tag) in &sender.reported_tags {
                 if tag.exp_timestamp < self.time_provider.get_current_time() {
                     expired_tags.push(signature.clone());
@@ -640,7 +643,7 @@ mod tests {
         let tag = tag_res.unwrap();
 
         let binary: heapless::Vec<u8, 350> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 282);
+        assert_eq!(binary.len(), 280);
     }
 
     #[test]
