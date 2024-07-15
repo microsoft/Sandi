@@ -2,7 +2,7 @@ use crate::{
     nizqdleq,
     tag::Tag,
     utils::{
-        basepoint_order, verify_signature, verifying_key_from_vec, SignatureVerificationError,
+        basepoint_order, verify_signature, verifying_key_from_slice, SignatureVerificationError,
     },
 };
 use chrono::Utc;
@@ -17,11 +17,11 @@ pub fn verify(
     receiver_addr: &str,
     vks: &RistrettoPoint,
     tag: &Tag,
-    randomness_hr: &Vec<u8>,
-    randomness_vks: &Vec<u8>,
+    randomness_hr: &[u8],
+    randomness_vks: &[u8],
     proof: &(Scalar, Scalar),
     r_big: &RistrettoPoint,
-    as_vks: &Vec<u8>,
+    as_vks: &[u8],
 ) -> Result<u8, VerificationError> {
     if tag.exp_timestamp < Utc::now().timestamp() {
         // Tag is expired
@@ -30,7 +30,7 @@ pub fn verify(
 
     // Verify signature
     let verif_key =
-        verifying_key_from_vec(as_vks).map_err(|err_msg| VerificationError(err_msg))?;
+        verifying_key_from_slice(as_vks).map_err(|err_msg| VerificationError(err_msg))?;
 
     let signature_result = verify_signature(tag, &verif_key);
     match signature_result {

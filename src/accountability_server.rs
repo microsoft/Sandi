@@ -154,8 +154,8 @@ impl AccountabilityServer {
 
     pub fn issue_tag<R>(
         &mut self,
-        commitment_hr: &Vec<u8>,
-        commitment_vks: &Vec<u8>,
+        commitment_hr: &[u8],
+        commitment_vks: &[u8],
         sender_handle: &str,
         rng: &mut R,
     ) -> Result<Tag, AccSvrError>
@@ -178,7 +178,7 @@ impl AccountabilityServer {
         }
 
         // Add VKS key
-        sender.add_vks_key(epoch, commitment_vks.clone());
+        sender.add_vks_key(epoch, commitment_vks);
         self.sender_records.set_sender(sender.clone());
         
         // PK for current epoch
@@ -236,8 +236,8 @@ impl AccountabilityServer {
 
         // Finally, we create the tag
         let tag = Tag {
-            commitment_hr: commitment_hr.clone(),
-            commitment_vks: commitment_vks.clone(),
+            commitment_hr: commitment_hr.to_vec(),
+            commitment_vks: commitment_vks.to_vec(),
             exp_timestamp: expiration_date,
             score: self.compute_reputation(&sender),
             enc_sender_id: encrypted_sender_id.to_vec(),
@@ -250,9 +250,9 @@ impl AccountabilityServer {
         Ok(tag)
     }
 
-    pub fn get_verifying_key(&self) -> Vec<u8> {
+    pub fn get_verifying_key(&self) -> [u8; 32] {
         let vk = self.signing_key.verifying_key();
-        vk.to_bytes().to_vec()
+        vk.to_bytes()
     }
 
     pub fn report(

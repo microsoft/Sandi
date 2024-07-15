@@ -17,11 +17,11 @@ pub mod gaussian;
 
 pub fn verify_tag(
     receiver_addr: &str,
-    vks: &Vec<u8>,
-    verifying_key: &Vec<u8>,
-    tag: &Vec<u8>,
+    vks: &[u8],
+    verifying_key: &[u8],
+    tag: &[u8],
 ) -> Result<u8, String> {
-    let full_tag = SenderTag::from_vec(tag)?;
+    let full_tag = SenderTag::from_slice(tag)?;
     let compressed_vks = CompressedRistretto::from_slice(vks);
     let vks_point: RistrettoPoint;
 
@@ -42,7 +42,7 @@ pub fn verify_tag(
         &full_tag.r_big,
         verifying_key,
     );
-    
+
     match verif_result {
         Ok(reputation) => return Ok(reputation),
         Err(VerificationError(err_msg)) => {

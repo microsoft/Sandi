@@ -14,7 +14,7 @@ pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
     pub epks: HashMap<i64, RistrettoPoint>,
-    pub vks_keys: HashMap<i64, Vec<Vec<u8>>>,
+    pub vks_keys: HashMap<i64, Vec<[u8;32]>>,
     pub score: f64,
     pub b_param: f64,
     pub report_count: Vec<i32>,
@@ -57,16 +57,18 @@ impl SenderRecord {
         }
     }
 
-    pub fn add_vks_key(&mut self, epoch: i64, vks_key: Vec<u8>) {
+    pub fn add_vks_key(&mut self, epoch: i64, vks_key: &[u8]) {
         if !self.vks_keys.contains_key(&epoch) {
             self.vks_keys.insert(epoch, vec![]);
         }
 
         let vks_keys_opt = self.vks_keys.get_mut(&epoch);
         match vks_keys_opt {
-            None => { panic!("VKs keys not found"); }
+            None => { panic!("Epoch not found"); }
             Some(vks_keys) => {
-                vks_keys.push(vks_key);
+                let mut vks_arr: [u8; 32] = [0; 32];
+                vks_arr.copy_from_slice(vks_key);
+                vks_keys.push(vks_arr);
             }
         }
     }
@@ -140,7 +142,7 @@ impl SenderRecords {
         }
     }
 
-    pub(crate) fn add_vks_key(&mut self, sender_id: &SenderId, epoch: i64, vks_key: Vec<u8>) -> Result<(), SenderRecordError> {
+    pub(crate) fn add_vks_key(&mut self, sender_id: &SenderId, epoch: i64, vks_key: [u8;32]) -> Result<(), SenderRecordError> {
         // First find the sender
         let sender_rec = self.records.get_mut(sender_id);
         match sender_rec

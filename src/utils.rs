@@ -135,7 +135,7 @@ pub fn verify_signature(
     Ok(())
 }
 
-pub fn verifying_key_from_vec(vk: &Vec<u8>) -> Result<VerifyingKey, String> {
+pub fn verifying_key_from_slice(vk: &[u8]) -> Result<VerifyingKey, String> {
     if vk.len() != PUBLIC_KEY_LENGTH {
         return Err(format!(
             "Verifying key size is not {} bytes",

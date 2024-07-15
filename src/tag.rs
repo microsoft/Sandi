@@ -50,9 +50,9 @@ impl Tag {
         vec
     }
 
-    pub fn from_vec(bytes: &Vec<u8>) -> Result<Self, String> {
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, String> {
         // Deserialize tag using flatbuffers
-        let tag = crate::serialization::root_as_tag(bytes.as_slice());
+        let tag = crate::serialization::root_as_tag(bytes);
         if tag.is_err() {
             return Err(format!("Failed to deserialize tag: {}", tag.unwrap_err()));
         }
@@ -120,7 +120,7 @@ mod tests {
         let vec = tag.to_vec();
         assert_eq!(vec.len(), 304);
 
-        let tag2 = Tag::from_vec(&vec);
+        let tag2 = Tag::from_slice(&vec);
         assert!(tag2.is_ok());
         let tag2 = tag2.unwrap();
 

@@ -56,9 +56,9 @@ impl SenderTag {
         builder.finished_data().to_vec()
     }
 
-    pub fn from_vec(bytes: &Vec<u8>) -> Result<Self, String> {
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, String> {
         // Deserialize tag using flatbuffers
-        let full_tag = crate::serialization::root_as_full_tag(bytes.as_slice());
+        let full_tag = crate::serialization::root_as_full_tag(bytes);
         if full_tag.is_err() {
             return Err(format!(
                 "Failed to deserialize tag: {}",
@@ -155,7 +155,7 @@ mod tests {
         let serialized_tag = full_tag.to_vec();
         assert_eq!(serialized_tag.len(), 508);
 
-        let deserialized_tag = SenderTag::from_vec(&serialized_tag);
+        let deserialized_tag = SenderTag::from_slice(&serialized_tag);
         assert!(deserialized_tag.is_ok());
         let deserialized_tag = deserialized_tag.unwrap();
         assert_eq!(deserialized_tag.tag.commitment_hr, vec![0; 32]);
