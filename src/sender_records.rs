@@ -13,8 +13,9 @@ pub type Token = ([u8; 8], RistrettoPoint);
 pub(crate) struct SenderRecord {
     pub id: SenderId,
     pub handles: Vec<String>,
-    pub epks: HashMap<i64, RistrettoPoint>,
-    pub vks_keys: HashMap<i64, Vec<[u8;32]>>,
+    pub epk: Option<RistrettoPoint>,
+    pub epk_epoch: i64,
+    pub vks_keys: HashMap<i64, Vec<[u8; 32]>>,
     pub score: f64,
     pub b_param: f64,
     pub report_count: Vec<i32>,
@@ -40,7 +41,8 @@ impl SenderRecord {
         SenderRecord {
             id: sender_id,
             handles: vec![handle.to_string()],
-            epks: HashMap::new(),
+            epk: None,
+            epk_epoch: 0,
             vks_keys: HashMap::new(),
             score: initial_score,
             b_param: 1.0,
@@ -122,11 +124,12 @@ impl SenderRecords {
         {
             None => return Err(SenderRecordError("Sender not found".to_string())),
             Some(sender) => {
-                if sender.epks.contains_key(&epoch) {
+                if sender.epk_epoch == epoch {
                     return Err(SenderRecordError("EPK already exists for this epoch".to_string()));
                 }
 
-                sender.epks.insert(epoch, epk);
+                sender.epk_epoch = epoch;
+                sender.epk = Some(epk);
                 Ok(())
             }
         }

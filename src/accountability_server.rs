@@ -139,7 +139,8 @@ impl AccountabilityServer {
                 let mut rng = OsRng;
                 let mut sender =
                     SenderRecord::new(sender_handle, self.params.tag_duration, self.params.maximum_score, &mut rng);
-                sender.epks.insert(epoch, epk.clone());
+                sender.epk_epoch = epoch;
+                sender.epk = Some(epk.clone());
                 self.sender_records.set_sender(sender);
                 Ok(())
             }
@@ -183,11 +184,19 @@ impl AccountabilityServer {
         self.sender_records.set_sender(sender.clone());
         
         // PK for current epoch
-        let epk_opt = sender.epks.get(&epoch);
-        if epk_opt.is_none() {
-            return Err(AccSvrError("Sender PK not found".to_string()));
+        if epoch != sender.epk_epoch {
+            return Err(AccSvrError("Sender PK not found for current epoch".to_string()));
         }
-        let epk = epk_opt.unwrap();
+
+        let epk: RistrettoPoint;
+        match sender.epk {
+            Some(sepk) => {
+                epk = sepk;
+            }
+            None => {
+                return Err(AccSvrError("Sender PK not set".to_string()));
+            }
+        }
 
         // s is random scalar
         let s = random_scalar(rng);
