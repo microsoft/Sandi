@@ -1,6 +1,7 @@
 use crate::gaussian::{Gaussian, NoiseDistribution};
 use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
+use crate::sender_tag::ReportTag;
 use crate::tag::{EncSenderId, Tag, TagSignature};
 use crate::utils::{
     basepoint_order, concat_id_and_scalars, decrypt, encrypt,
@@ -260,19 +261,17 @@ impl AccountabilityServer {
 
     pub fn report(
         &mut self,
-        tag: Tag,
-        proof: (Scalar, Scalar),
-        r_big: RistrettoPoint,
+        report_tag: &ReportTag
     ) -> Result<(), AccSvrError> {
         // Check if tag is expired
         let utc_now = self.time_provider.get_current_time();
-        if tag.exp_timestamp < utc_now {
+        if report_tag.tag.exp_timestamp < utc_now {
             return Err(AccSvrError("Tag is expired".to_string()));
         }
 
         // Verify tag signature
         let verifying_key = self.signing_key.verifying_key();
-        let signature_result = verify_signature(&tag, &verifying_key);
+        let signature_result = verify_signature(&report_tag.tag, &verifying_key);
         match signature_result {
             Ok(_) => {}
             Err(SignatureVerificationError(err_msg)) => {
@@ -286,11 +285,11 @@ impl AccountabilityServer {
         // Verify NIZQDLEQ
         let nizqdleq_result = nizqdleq::verify(
             &basepoint_order(),
-            &tag.g_prime,
-            &tag.x_big,
-            &tag.q_big,
-            &r_big,
-            &proof,
+            &report_tag.tag.g_prime,
+            &report_tag.tag.x_big,
+            &report_tag.tag.q_big,
+            &report_tag.r_big,
+            &report_tag.proof,
         );
         if !nizqdleq_result {
             return Err(AccSvrError("Invalid NIZQDLEQ proof".to_string()));
@@ -298,11 +297,11 @@ impl AccountabilityServer {
 
         // Sender Id + n + r
         let scalar_length = Scalar::ONE.as_bytes().len();
-        if tag.enc_sender_id.0.len() != 8 + scalar_length + 8 {
+        if report_tag.tag.enc_sender_id.0.len() != 8 + scalar_length + 8 {
             return Err(AccSvrError("Invalid sender id".to_string()));
         }
 
-        let mut decrypted_sender_id = tag.enc_sender_id.clone();
+        let mut decrypted_sender_id = report_tag.tag.enc_sender_id.clone();
         decrypt(&self.enc_secret_key, &mut decrypted_sender_id.0);
         // Order is: r | n | ID
         let mut sender_id = SenderId::default();
@@ -314,19 +313,19 @@ impl AccountabilityServer {
         let r = Scalar::from_canonical_bytes(r_buff).unwrap();
         let inv_r = r.invert();
 
-        let sigma = inv_r * r_big;
+        let sigma = inv_r * report_tag.r_big;
 
         let sender_opt = self.sender_records.get_sender_by_id(&sender_id);
         match sender_opt {
             Some(mut sender) => {
-                if sender.reported_tags.contains_key(&tag.signature.0) {
+                if sender.reported_tags.contains_key(&report_tag.tag.signature.0) {
                     // Tag is already reported, no need to do anything
                     return Ok(());
                 }
 
                 // Obtain the counter index for the tag.
                 // The counter index is the number of epochs ago the tag was issued
-                let issue_date = tag.exp_timestamp
+                let issue_date = report_tag.tag.exp_timestamp
                     - (self.params.epoch_duration as i64 * 3600 * self.params.tag_duration as i64);
 
                 // We'll assume epochs start at the beginning of the day
@@ -344,7 +343,7 @@ impl AccountabilityServer {
                 }
 
                 // Tag is valid, so we add it to the unprocessed tags
-                sender.reported_tags.insert(tag.signature.0.clone(), tag);
+                sender.reported_tags.insert(report_tag.tag.signature.0.clone(), report_tag.tag.clone());
                 sender.tokens.push((n, sigma));
                 sender.report_count[counter_idx] += 1;
 
@@ -499,7 +498,7 @@ mod tests {
 
         // Report tags
         for tag in tags {
-            let result = server.report(tag.tag, tag.proof, tag.r_big);
+            let result = server.report(&tag.report_tag);
             assert!(result.is_ok(), "{:?}", result.unwrap_err());
         }
 
@@ -728,7 +727,7 @@ mod tests {
         unsafe { MOCK_TIME = utc_now };
         let mut expired_tags = 0;
         for tag in tags {
-            let result = acc_svr.report(tag.tag, tag.proof, tag.r_big);
+            let result = acc_svr.report(&tag.report_tag);
             match result {
                 Ok(_) => {}
                 Err(AccSvrError(err_msg)) => {

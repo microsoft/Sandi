@@ -1,3 +1,5 @@
+use std::io::Repeat;
+
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use hmac::{Hmac, Mac};
 use rand::{CryptoRng, RngCore};
@@ -6,7 +8,7 @@ use sha2::Sha256;
 use crate::{
     accountability_server::{AccSvrError, AccountabilityServer},
     nizqdleq,
-    sender_tag::SenderTag,
+    sender_tag::{ReportTag, SenderTag},
     utils::{basepoint_order, G},
 };
 
@@ -134,13 +136,17 @@ impl Sender {
                     rng,
                 );
 
-                Ok(SenderTag {
+                let report_tag = ReportTag {
                     tag,
+                    proof: z,
+                    r_big,
+                };
+
+                Ok(SenderTag {
+                    report_tag,
                     randomness_hr,
                     randomness_vks,
                     vks: channel.vks,
-                    proof: z,
-                    r_big,
                 })
             }
             Err(AccSvrError(err_msg)) => Err(SenderError(err_msg)),

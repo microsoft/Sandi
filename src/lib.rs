@@ -17,29 +17,14 @@ pub mod gaussian;
 
 pub fn verify_tag(
     receiver_addr: &str,
-    vks: &[u8],
     verifying_key: &[u8],
     tag: &[u8],
 ) -> Result<u8, String> {
     let full_tag = SenderTag::from_slice(tag)?;
-    let compressed_vks = CompressedRistretto::from_slice(vks);
-    let vks_point: RistrettoPoint;
-
-    match compressed_vks {
-        Ok(compressed_vks) => {
-            vks_point = compressed_vks.decompress().ok_or("Failed to decompress vks")?;
-        }
-        Err(err) => return Err(format!("Failed to decompress vks: {}", err.to_string())),
-    }
 
     let verif_result = tag_verifier::verify(
         receiver_addr,
-        &vks_point,
-        &full_tag.tag,
-        &full_tag.randomness_hr,
-        &full_tag.randomness_vks,
-        &full_tag.proof,
-        &full_tag.r_big,
+        &full_tag,
         verifying_key,
     );
 
@@ -91,15 +76,9 @@ mod tests {
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
-        let vks = &channel.vks;
         let verif_result = tag_verifier::verify(
             &receiver_addr,
-            vks,
-            &tag.tag,
-            &tag.randomness_hr,
-            &tag.randomness_vks,
-            &tag.proof,
-            &tag.r_big,
+            &tag,
             &vk,
         );
         assert!(verif_result.is_ok());
@@ -110,7 +89,7 @@ mod tests {
         assert_eq!(sender_opt.unwrap().reported_tags.len(), 0);
 
         // Report tag
-        let report_result = accsvr.report(tag.tag, tag.proof, tag.r_big);
+        let report_result = accsvr.report(&tag.report_tag);
         assert!(report_result.is_ok(), "{:?}", report_result.unwrap_err());
         let sender_opt = accsvr.sender_records.get_sender_by_handle("sender1");
         assert!(sender_opt.is_some());

@@ -8,37 +8,42 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SenderTag {
+pub struct ReportTag {
     pub tag: Tag,
+    pub proof: (Scalar, Scalar),
+    pub r_big: RistrettoPoint,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SenderTag {
+    pub report_tag: ReportTag,
     pub randomness_hr: [u8; 32],
     pub randomness_vks: [u8; 32],
     pub vks: RistrettoPoint,
-    pub proof: (Scalar, Scalar),
-    pub r_big: RistrettoPoint,
 }
 
 impl SenderTag {
     pub fn to_vec(&self) -> Vec<u8> {
         let mut builder = FlatBufferBuilder::new();
-        let commitment_hr = &FixedBuffer32(self.tag.commitment_hr.clone().try_into().unwrap());
-        let commitment_vks = &FixedBuffer32(self.tag.commitment_vks.clone().try_into().unwrap());
-        let enc_sender_id = &FixedBuffer48(self.tag.enc_sender_id.0.clone().try_into().unwrap());
-        let signature = &FixedBuffer64(self.tag.signature.0.clone().try_into().unwrap());
-        let q_big = &FixedBuffer32(self.tag.q_big.compress().to_bytes());
-        let g_prime = &FixedBuffer32(self.tag.g_prime.compress().to_bytes());
-        let x_big = &FixedBuffer32(self.tag.x_big.compress().to_bytes());
+        let commitment_hr = &FixedBuffer32(self.report_tag.tag.commitment_hr.clone().try_into().unwrap());
+        let commitment_vks = &FixedBuffer32(self.report_tag.tag.commitment_vks.clone().try_into().unwrap());
+        let enc_sender_id = &FixedBuffer48(self.report_tag.tag.enc_sender_id.0.clone().try_into().unwrap());
+        let signature = &FixedBuffer64(self.report_tag.tag.signature.0.clone().try_into().unwrap());
+        let q_big = &FixedBuffer32(self.report_tag.tag.q_big.compress().to_bytes());
+        let g_prime = &FixedBuffer32(self.report_tag.tag.g_prime.compress().to_bytes());
+        let x_big = &FixedBuffer32(self.report_tag.tag.x_big.compress().to_bytes());
         let randomness_hr = &FixedBuffer32(self.randomness_hr.clone().try_into().unwrap());
         let randomness_vks = &FixedBuffer32(self.randomness_vks.clone().try_into().unwrap());
         let vks = &FixedBuffer32(self.vks.compress().to_bytes());
-        let z_c = &FixedBuffer32(self.proof.0.to_bytes());
-        let z_s = &FixedBuffer32(self.proof.1.to_bytes());
-        let r_big = &FixedBuffer32(self.r_big.compress().to_bytes());
+        let z_c = &FixedBuffer32(self.report_tag.proof.0.to_bytes());
+        let z_s = &FixedBuffer32(self.report_tag.proof.1.to_bytes());
+        let r_big = &FixedBuffer32(self.report_tag.r_big.compress().to_bytes());
 
         let args = crate::serialization::FullTagArgs {
             commitment_hr: Some(commitment_hr),
             commitment_vks: Some(commitment_vks),
-            expiration: self.tag.exp_timestamp,
-            score: self.tag.score,
+            expiration: self.report_tag.tag.exp_timestamp,
+            score: self.report_tag.tag.score,
             enc_sender_id: Some(enc_sender_id),
             q_big: Some(q_big),
             g_prime: Some(g_prime),
@@ -110,13 +115,17 @@ impl SenderTag {
             signature: TagSignature(signature),
         };
 
-        Ok(SenderTag {
+        let report_tag = ReportTag {
             tag,
+            proof: (z_c, z_s),
+            r_big,
+        };
+
+        Ok(SenderTag {
+            report_tag,
             randomness_hr,
             randomness_vks,
             vks,
-            proof: (z_c, z_s),
-            r_big,
         })
     }
 }
@@ -143,13 +152,17 @@ mod tests {
             signature: TagSignature([0; 64]),
         };
 
-        let full_tag = SenderTag {
+        let report_tag = ReportTag {
             tag,
+            proof: (random_scalar(&mut rng), random_scalar(&mut rng)),
+            r_big: random_point(&mut rng),
+        };
+
+        let full_tag = SenderTag {
+            report_tag,
             randomness_hr: [0; 32],
             randomness_vks: [0; 32],
             vks: random_point(&mut rng),
-            proof: (random_scalar(&mut rng), random_scalar(&mut rng)),
-            r_big: random_point(&mut rng),
         };
 
         let serialized_tag = full_tag.to_vec();
@@ -158,19 +171,19 @@ mod tests {
         let deserialized_tag = SenderTag::from_slice(&serialized_tag);
         assert!(deserialized_tag.is_ok());
         let deserialized_tag = deserialized_tag.unwrap();
-        assert_eq!(deserialized_tag.tag.commitment_hr, [0; 32]);
-        assert_eq!(deserialized_tag.tag.commitment_vks, [0; 32]);
-        assert_eq!(deserialized_tag.tag.exp_timestamp, 0);
-        assert_eq!(deserialized_tag.tag.score, 0);
-        assert_eq!(deserialized_tag.tag.enc_sender_id, EncSenderId([0; 48]));
-        assert_eq!(deserialized_tag.tag.q_big, full_tag.tag.q_big);
-        assert_eq!(deserialized_tag.tag.g_prime, full_tag.tag.g_prime);
-        assert_eq!(deserialized_tag.tag.x_big, full_tag.tag.x_big);
-        assert_eq!(deserialized_tag.tag.signature, TagSignature([0; 64]));
+        assert_eq!(deserialized_tag.report_tag.tag.commitment_hr, [0; 32]);
+        assert_eq!(deserialized_tag.report_tag.tag.commitment_vks, [0; 32]);
+        assert_eq!(deserialized_tag.report_tag.tag.exp_timestamp, 0);
+        assert_eq!(deserialized_tag.report_tag.tag.score, 0);
+        assert_eq!(deserialized_tag.report_tag.tag.enc_sender_id, EncSenderId([0; 48]));
+        assert_eq!(deserialized_tag.report_tag.tag.q_big, full_tag.report_tag.tag.q_big);
+        assert_eq!(deserialized_tag.report_tag.tag.g_prime, full_tag.report_tag.tag.g_prime);
+        assert_eq!(deserialized_tag.report_tag.tag.x_big, full_tag.report_tag.tag.x_big);
+        assert_eq!(deserialized_tag.report_tag.tag.signature, TagSignature([0; 64]));
         assert_eq!(deserialized_tag.randomness_hr, [0; 32]);
         assert_eq!(deserialized_tag.randomness_vks, [0; 32]);
         assert_eq!(deserialized_tag.vks, full_tag.vks);
-        assert_eq!(deserialized_tag.proof, full_tag.proof);
-        assert_eq!(deserialized_tag.r_big, full_tag.r_big);
+        assert_eq!(deserialized_tag.report_tag.proof, full_tag.report_tag.proof);
+        assert_eq!(deserialized_tag.report_tag.r_big, full_tag.report_tag.r_big);
     }
 }

@@ -1,9 +1,7 @@
 use crate::{
-    nizqdleq,
-    tag::Tag,
-    utils::{
+    nizqdleq, sender_tag::SenderTag, tag::Tag, utils::{
         basepoint_order, verify_signature, verifying_key_from_slice, SignatureVerificationError,
-    },
+    }
 };
 use chrono::Utc;
 use curve25519_dalek::{RistrettoPoint, Scalar};
@@ -15,15 +13,10 @@ pub struct VerificationError(pub String);
 
 pub fn verify(
     receiver_addr: &str,
-    vks: &RistrettoPoint,
-    tag: &Tag,
-    randomness_hr: &[u8],
-    randomness_vks: &[u8],
-    proof: &(Scalar, Scalar),
-    r_big: &RistrettoPoint,
+    sender_tag: &SenderTag,
     as_vks: &[u8],
 ) -> Result<u8, VerificationError> {
-    if tag.exp_timestamp < Utc::now().timestamp() {
+    if sender_tag.report_tag.tag.exp_timestamp < Utc::now().timestamp() {
         // Tag is expired
         return Err(VerificationError("Tag is expired".to_string()));
     }
@@ -32,7 +25,7 @@ pub fn verify(
     let verif_key =
         verifying_key_from_slice(as_vks).map_err(|err_msg| VerificationError(err_msg))?;
 
-    let signature_result = verify_signature(tag, &verif_key);
+    let signature_result = verify_signature(&sender_tag.report_tag.tag, &verif_key);
     match signature_result {
         Ok(_) => {}
         Err(SignatureVerificationError(err_msg)) => {
@@ -44,40 +37,40 @@ pub fn verify(
     }
 
     // Verify message correctness
-    let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_hr)
+    let mut mac = Hmac::<Sha256>::new_from_slice(&sender_tag.randomness_hr)
         .map_err(|_| VerificationError("Invalid randomness receiver".to_string()))?;
 
     mac.update(receiver_addr.as_bytes());
     let commitment = mac.finalize();
 
-    if commitment.into_bytes().to_vec() != tag.commitment_hr {
+    if commitment.into_bytes().to_vec() != sender_tag.report_tag.tag.commitment_hr {
         return Err(VerificationError("Invalid receiver commitment".to_string()));
     }
 
-    let mut mac = Hmac::<Sha256>::new_from_slice(&randomness_vks)
+    let mut mac = Hmac::<Sha256>::new_from_slice(&sender_tag.randomness_vks)
         .map_err(|_| VerificationError("Invalid randomness vks".to_string()))?;
 
-    mac.update(vks.compress().as_bytes());
+    mac.update(sender_tag.vks.compress().as_bytes());
     let commitment = mac.finalize();
 
-    if commitment.into_bytes().to_vec() != tag.commitment_vks {
+    if commitment.into_bytes().to_vec() != sender_tag.report_tag.tag.commitment_vks {
         return Err(VerificationError("Invalid vks commitment".to_string()));
     }
 
     // Verify NIZKDLEG
     let nizqdleq_result = nizqdleq::verify(
         &basepoint_order(),
-        &tag.g_prime,
-        &tag.x_big,
-        &tag.q_big,
-        r_big,
-        proof,
+        &sender_tag.report_tag.tag.g_prime,
+        &sender_tag.report_tag.tag.x_big,
+        &sender_tag.report_tag.tag.q_big,
+        &sender_tag.report_tag.r_big,
+        &sender_tag.report_tag.proof,
     );
     if !nizqdleq_result {
         return Err(VerificationError("Invalid NIZKDLEQ proof".to_string()));
     }
 
-    Ok(tag.score)
+    Ok(sender_tag.report_tag.tag.score)
 }
 
 #[cfg(test)]
@@ -117,12 +110,7 @@ mod tests {
         // Tag should be valid
         let verif_result = verify(
             receiver_addr,
-            &channel.vks,
-            &tag.tag,
-            &tag.randomness_hr,
-            &tag.randomness_vks,
-            &tag.proof,
-            &tag.r_big,
+            &tag,
             &accsvr.get_verifying_key(),
         );
         assert!(verif_result.is_ok(), "{}", verif_result.unwrap_err().0);
