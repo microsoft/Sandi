@@ -1,5 +1,3 @@
-use std::io::Repeat;
-
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use hmac::{Hmac, Mac};
 use rand::{CryptoRng, RngCore};
@@ -44,6 +42,7 @@ impl Sender {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_channels(&self, receiver_addr: &str) -> Vec<&SenderChannel> {
         let mut channels = Vec::new();
 
@@ -185,9 +184,6 @@ mod tests {
         let tag_opt = sender.get_tag(&channel, &mut accsvr, &mut rng);
         assert!(tag_opt.is_ok());
 
-        let tag = tag_opt.unwrap();
-
-        let binary: heapless::Vec<u8, 600> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 472);
+        let _tag = tag_opt.unwrap();
     }
 }

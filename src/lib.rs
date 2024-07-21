@@ -1,4 +1,3 @@
-use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use sender_tag::SenderTag;
 use tag_verifier::VerificationError;
 

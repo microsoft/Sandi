@@ -135,6 +135,7 @@ impl SenderRecords {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn set_sender_epk_byhandle(&mut self, handle: &str, epoch: i64, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
         // First find the sender
         let sender_id = self.ids.get(handle).cloned();
@@ -145,6 +146,7 @@ impl SenderRecords {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn add_vks_key(&mut self, sender_id: &SenderId, epoch: i64, vks_key: [u8;32]) -> Result<(), SenderRecordError> {
         // First find the sender
         let sender_rec = self.records.get_mut(sender_id);

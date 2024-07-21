@@ -1,10 +1,9 @@
 use crate::{
-    nizqdleq, sender_tag::SenderTag, tag::Tag, utils::{
+    nizqdleq, sender_tag::SenderTag, utils::{
         basepoint_order, verify_signature, verifying_key_from_slice, SignatureVerificationError,
     }
 };
 use chrono::Utc;
-use curve25519_dalek::{RistrettoPoint, Scalar};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 

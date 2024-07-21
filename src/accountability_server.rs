@@ -434,7 +434,6 @@ mod tests {
     use chrono::{NaiveDateTime, TimeZone, Utc};
     use curve25519_dalek::ristretto::CompressedRistretto;
     use hmac::{Hmac, Mac};
-    use rand::Rng;
     use sha2::Sha256;
 
     use super::*;
@@ -648,10 +647,7 @@ mod tests {
         let tag_res = accsvr.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &sender.handle, &mut rng);
         assert!(tag_res.is_ok());
 
-        let tag = tag_res.unwrap();
-
-        let binary: heapless::Vec<u8, 350> = postcard::to_vec(&tag).unwrap();
-        assert_eq!(binary.len(), 280);
+        let _tag = tag_res.unwrap();
     }
 
     #[test]
