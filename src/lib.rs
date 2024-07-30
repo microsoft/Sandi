@@ -13,6 +13,7 @@ pub mod tag;
 pub mod tag_verifier;
 pub mod utils;
 pub mod gaussian;
+pub mod receiver;
 
 pub fn verify_tag(
     receiver_addr: &str,

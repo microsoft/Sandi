@@ -21,6 +21,17 @@ pub fn get_epoch(timestamp: i64, epoch_duration: i64, epoch_start: i64) -> i64 {
     epoch
 }
 
+pub fn get_lock_timestamp(time_stamp: i64, lock_duration: i64, epoch_duration: i64) -> i64 {
+    // epoch_duration is in hours. Needs to be a multiple of 24.
+    assert_eq!(epoch_duration % 24, 0);
+
+    // lock duration is in epochs
+    let elapsed_hours = epoch_duration * lock_duration;
+
+    let lock_timestamp = time_stamp + elapsed_hours * 3600;
+    lock_timestamp
+}
+
 pub fn get_timestamp_for_date_and_time(year: i32, month: u32, day: u32, hour: u32, minute: u32, second: u32) -> i64 {
     let dt = NaiveDateTime::new(
         chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap(),
@@ -92,6 +103,20 @@ mod tests {
         assert_eq!(date.year(), 2021);
         assert_eq!(date.month(), 3);
         assert_eq!(date.day(), 31);
+        assert_eq!(date.hour(), 3);
+        assert_eq!(date.minute(), 17);
+        assert_eq!(date.second(), 56);
+    }
+
+    #[test]
+    fn test_get_lock_timestamp() {
+        let timestamp = 1617160676; // 2021-03-31 03:17:56 UTC
+        let epoch_duration = 48;
+        let lock_timestamp = get_lock_timestamp(timestamp, 2, epoch_duration);
+        let date = get_date_from_timestamp(lock_timestamp);
+        assert_eq!(date.year(), 2021);
+        assert_eq!(date.month(), 4);
+        assert_eq!(date.day(), 4); // 4 days
         assert_eq!(date.hour(), 3);
         assert_eq!(date.minute(), 17);
         assert_eq!(date.second(), 56);
