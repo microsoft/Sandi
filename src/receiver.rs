@@ -49,7 +49,7 @@ impl Receiver {
 
         // Set the lock period
         // Need to use epochs utility to compute the lock timestamp
-        self.report_lock = 0;
+        self.report_lock = 0; // epochs::get_lock_timestamp(now, self.report_lock_period, 24);
 
         Ok(())
     }
