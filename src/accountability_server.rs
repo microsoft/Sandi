@@ -3,6 +3,7 @@ use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
 use crate::sender_tag::ReportTag;
 use crate::tag::{EncSenderId, Tag, TagSignature};
+use crate::time_provider::{DefaultTimeProvider, TimeProvider};
 use crate::utils::{
     basepoint_order, concat_id_and_scalars, decrypt, encrypt,
     random_scalar, verify_signature, SignatureVerificationError, G,
@@ -15,11 +16,6 @@ use rand::rngs::OsRng;
 use rand::{CryptoRng, RngCore};
 use rand_distr::Distribution;
 use sha2::Sha512;
-
-// Provides ability to manipulate time for testing purposes
-pub(crate) trait TimeProvider {
-    fn get_current_time(&self) -> i64;
-}
 
 pub struct AccountabilityServer {
     enc_secret_key: [u8; 32],
@@ -47,9 +43,6 @@ pub struct AccServerParams {
     // Optional distribution for differential privacy
     pub noise_distribution: Option<Box<Gaussian>>,
 }
-
-// The default implementation will return the correct time
-pub(crate) struct DefaultTimeProvider {}
 
 // Default function for computing score
 fn compute_reputation(sender_score: f64, max_score: f64) -> u8 {
@@ -420,12 +413,6 @@ impl AccountabilityServer {
                 sender.reported_tags.remove(&signature);
             }
         });
-    }
-}
-
-impl TimeProvider for DefaultTimeProvider {
-    fn get_current_time(&self) -> i64 {
-        chrono::Utc::now().timestamp()
     }
 }
 

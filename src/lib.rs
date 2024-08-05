@@ -14,6 +14,7 @@ pub mod tag_verifier;
 pub mod utils;
 pub mod gaussian;
 pub mod receiver;
+mod time_provider;
 
 pub fn verify_tag(
     receiver_addr: &str,
