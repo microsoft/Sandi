@@ -14,7 +14,10 @@ pub mod tag_verifier;
 pub mod utils;
 pub mod gaussian;
 pub mod receiver;
+
+// private modules
 mod time_provider;
+mod spin_lock;
 
 pub fn verify_tag(
     receiver_addr: &str,
