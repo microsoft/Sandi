@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::tag::Tag;
+use crate::{spin_lock::{Spinlock, SpinlockGuard}, tag::Tag};
 use curve25519_dalek::RistrettoPoint;
 use rand::{CryptoRng, RngCore};
 
@@ -21,6 +21,7 @@ pub(crate) struct SenderRecord {
     pub report_count: Vec<i32>,
     pub reported_tags: HashMap<[u8; 64], Tag>,
     pub tokens: Vec<Token>,
+    pub(crate) lock: Arc<Spinlock>,
 }
 
 pub(crate) struct SenderRecords {
@@ -49,6 +50,7 @@ impl SenderRecord {
             report_count: vec![0; num_epochs + 1],
             reported_tags: HashMap::new(),
             tokens: Vec::new(),
+            lock: Arc::new(Spinlock::new()),
         }
     }
 
@@ -124,6 +126,7 @@ impl SenderRecords {
         {
             None => return Err(SenderRecordError("Sender not found".to_string())),
             Some(sender) => {
+                let _sender_lock = SpinlockGuard::new(sender.lock.clone());
                 if sender.epk_epoch == epoch {
                     return Err(SenderRecordError("EPK already exists for this epoch".to_string()));
                 }
@@ -154,6 +157,7 @@ impl SenderRecords {
         {
             None => return Err(SenderRecordError("Sender not found".to_string())),
             Some(sender) => {
+                let _sender_lock = SpinlockGuard::new(sender.lock.clone());
                 if !sender.vks_keys.contains_key(&epoch) {
                     sender.vks_keys.insert(epoch, vec![]);
                 }

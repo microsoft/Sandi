@@ -1,11 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 
-struct Spinlock {
+pub(crate) struct Spinlock {
     lock: AtomicBool,
 }
 
 impl Spinlock {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Spinlock {
             lock: AtomicBool::new(false),
         }
@@ -17,9 +17,10 @@ impl Spinlock {
             match result {
                 Ok(_previous) => {
                     // We were able to change the value
-                    continue;
+                    return;
                 }
-                Err(_current) => {  }
+                Err(_current) => {
+                }
             }
         }
     }
@@ -29,6 +30,56 @@ impl Spinlock {
     }
 }
 
-struct SpinlockGuard {
-    
+pub(crate) struct SpinlockGuard {
+    lock: Arc<Spinlock>,
+}
+
+impl SpinlockGuard {
+    pub(crate) fn new(lock: Arc<Spinlock>) -> Self {
+        lock.lock();
+        SpinlockGuard {
+            lock,
+        }
+    }
+}
+
+impl Drop for SpinlockGuard {
+    fn drop(&mut self) {
+        self.lock.unlock();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_spinlock() {
+        let spinlock = Arc::new(Spinlock::new());
+        let guard = SpinlockGuard::new(spinlock.clone());
+        drop(guard);
+        let guard = SpinlockGuard::new(spinlock.clone());
+        drop(guard);
+    }
+
+    #[test]
+    fn test_spinlock_concurrent() {
+        let time_start = std::time::Instant::now();
+        let spinlock = Arc::new(Spinlock::new());
+        let spinlock_clone = spinlock.clone();
+        let handle = std::thread::spawn(move || {
+            let guard = SpinlockGuard::new(spinlock_clone);
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            drop(guard);
+        });
+        let guard = SpinlockGuard::new(spinlock.clone());
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        drop(guard);
+        handle.join().unwrap();
+        let time_end = std::time::Instant::now();
+        let elapsed = time_end - time_start;
+        // The total time should be around 2 seconds
+        assert!(elapsed.as_millis() > 1750);
+    }
 }

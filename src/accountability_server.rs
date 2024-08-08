@@ -2,6 +2,7 @@ use crate::gaussian::{Gaussian, NoiseDistribution};
 use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
 use crate::sender_tag::ReportTag;
+use crate::spin_lock::{Spinlock, SpinlockGuard};
 use crate::tag::{EncSenderId, Tag, TagSignature};
 use crate::time_provider::{DefaultTimeProvider, TimeProvider};
 use crate::utils::{
@@ -166,6 +167,7 @@ impl AccountabilityServer {
             return Err(AccSvrError("Sender not found".to_string()));
         }
         let mut sender = sender_opt.unwrap();
+        let _sender_lock = SpinlockGuard::new(sender.lock.clone());
 
         // Check VKS limit
         if sender.get_vks_key_count(epoch) >= self.params.max_vks_per_epoch {
