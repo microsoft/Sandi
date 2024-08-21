@@ -381,6 +381,8 @@ impl AccountabilityServer {
     pub fn update_scores<R>(&mut self, rng: &mut R)
     where R: RngCore + CryptoRng {
         self.sender_records.for_each(|sender| {
+            let _sender_lock = SpinlockGuard::new(sender.lock.clone());
+            
             let mut report_count = sender.report_count[0] as f64;
         
             // Add noise if necessary
