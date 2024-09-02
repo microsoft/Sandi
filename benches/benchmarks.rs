@@ -1,9 +1,5 @@
 use acctblty::{
-    accountability_server::{AccServerParams, AccountabilityServer},
-    sender::Sender,
-    sender_tag::SenderTag,
-    tag_verifier,
-    utils::{basepoint_order, random_point, random_scalar}, tag::Tag,
+    accountability_server::{AccServerParams, AccountabilityServer}, sender::{Sender, SenderChannel}, sender_tag::{ReportTag, SenderTag}, tag::{EncSenderId, Tag, TagSignature}, tag_verifier, utils::{basepoint_order, random_point, random_scalar}
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use curve25519_dalek::Scalar;
@@ -16,9 +12,11 @@ fn get_tag_bench(c: &mut Criterion) {
             maximum_score: 100.0,
             report_threshold: 10,
             epoch_duration: 24,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             tag_duration: 2,
             compute_reputation: None,
             noise_distribution: None,
+            max_vks_per_epoch: 100,
         },
         &mut rng,
     );
@@ -42,9 +40,11 @@ fn issue_tag_bench(c: &mut Criterion) {
             maximum_score: 100.0,
             report_threshold: 10,
             epoch_duration: 24,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             tag_duration: 2,
             compute_reputation: None,
             noise_distribution: None,
+            max_vks_per_epoch: 100,
         },
         &mut rng,
     );
@@ -73,33 +73,30 @@ fn verify_tag_bench(c: &mut Criterion) {
             maximum_score: 100.0,
             report_threshold: 10,
             epoch_duration: 24,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             tag_duration: 2,
             compute_reputation: None,
             noise_distribution: None,
+            max_vks_per_epoch: 100,
         },
         &mut rng,
     );
-    let sender = Sender::new("sender1", &mut rng);
+    let mut sender = Sender::new("sender1", &mut rng);
     server.set_sender_epk(&sender.epk, &sender.handle);
-    let verifying_key = server.get_verifying_key();
 
     let receiver_addr = "receiver_addr";
+    let channel = sender.add_channel(receiver_addr, &mut rng);
 
     let tag = sender
-        .get_tag(receiver_addr, &server, &mut rng)
+        .get_tag(&channel, &mut server, &mut rng)
         .unwrap();
 
     c.bench_function("verify_tag", |b| {
         b.iter(|| {
             let _ = tag_verifier::verify(
                 receiver_addr,
-                sender.get_verifying_key(),
-                &tag.tag,
-                &tag.randomness_hr,
-                &tag.randomness_vks,
-                &tag.proof,
-                &tag.r_big,
-                &verifying_key,
+                &tag,
+                &server.get_verifying_key(),
             );
         })
     });
@@ -112,9 +109,11 @@ fn report_tag_bench(c: &mut Criterion) {
             maximum_score: 100.0,
             report_threshold: 10,
             epoch_duration: 24,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             tag_duration: 2,
             compute_reputation: None,
             noise_distribution: None,
+            max_vks_per_epoch: 100,
         },
         &mut rng,
     );
@@ -131,13 +130,14 @@ fn report_tag_bench(c: &mut Criterion) {
     }
 
     let receiver_addr = "receiver_addr";
+    let channels: Vec<SenderChannel> = (0..NUM_SENDERS).map(|i| senders[i].add_channel(receiver_addr, &mut rng)).collect();
 
     // Get NUM_SENDERS tags
     let mut tags: Vec<SenderTag> = Vec::new();
     for idx in 0..NUM_SENDERS {
         tags.push(
             senders[idx]
-                .get_tag(receiver_addr, &server, &mut rng)
+                .get_tag(&channels[idx], &mut server, &mut rng)
                 .unwrap(),
         );
     }
@@ -147,7 +147,7 @@ fn report_tag_bench(c: &mut Criterion) {
     c.bench_function("report_tag", |b| {
         b.iter(|| {
             let tag = tags.get(idx as usize).unwrap();
-            let result = server.report(tag.tag.clone(), tag.proof, tag.r_big);
+            let result = server.report(&tag.report_tag);
             assert!(result.is_ok());
             idx = idx + 1;
             assert!(idx < NUM_SENDERS);
@@ -227,15 +227,15 @@ fn serialize_tag_bench(c: &mut Criterion) {
 
 
     let tag = Tag {
-        commitment_hr: commitment_hr.to_vec(),
-        commitment_vks: commitment_vks.to_vec(),
+        commitment_hr: commitment_hr,
+        commitment_vks: commitment_vks,
         exp_timestamp: 0,
         score: 0,
-        enc_sender_id: enc_sender_id.to_vec(),
+        enc_sender_id: EncSenderId(enc_sender_id),
         q_big: random_point(&mut rng),
         g_prime: random_point(&mut rng),
         x_big: random_point(&mut rng),
-        signature: signature.to_vec(),
+        signature: TagSignature(signature),
     };
 
     c.bench_function("serialize_tag", |b| {
@@ -258,22 +258,22 @@ fn deserialize_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut enc_sender_id);
 
     let tag = Tag {
-        commitment_hr: commitment_hr.to_vec(),
-        commitment_vks: commitment_vks.to_vec(),
+        commitment_hr: commitment_hr,
+        commitment_vks: commitment_vks,
         exp_timestamp: 0,
         score: 0,
-        enc_sender_id: enc_sender_id.to_vec(),
+        enc_sender_id: EncSenderId(enc_sender_id),
         q_big: random_point(&mut rng),
         g_prime: random_point(&mut rng),
         x_big: random_point(&mut rng),
-        signature: signature.to_vec(),
+        signature: TagSignature(signature),
     };
 
     let vec = tag.to_vec();
 
     c.bench_function("deserialize_tag", |b| {
         b.iter(|| {
-            let result = Tag::from_vec(&vec);
+            let result = Tag::from_slice(&vec);
             assert!(result.is_ok());
         });
     });
@@ -296,24 +296,28 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
 
     let tag = Tag {
-        commitment_hr: commitment_hr.to_vec(),
-        commitment_vks: commitment_vks.to_vec(),
+        commitment_hr: commitment_hr,
+        commitment_vks: commitment_vks,
         exp_timestamp: 0,
         score: 0,
-        enc_sender_id: enc_sender_id.to_vec(),
+        enc_sender_id: EncSenderId(enc_sender_id),
         q_big: random_point(&mut rng),
         g_prime: random_point(&mut rng),
         x_big: random_point(&mut rng),
-        signature: signature.to_vec(),
+        signature: TagSignature(signature),
     };
 
-    let sender_tag = SenderTag {
+    let report_tag = ReportTag {
         tag,
-        randomness_hr: randomness_hr.to_vec(),
-        randomness_vks: randomness_vks.to_vec(),
-        vks: random_point(&mut rng),
         proof: proof,
         r_big: random_point(&mut rng),
+    };
+    
+    let sender_tag = SenderTag {
+        report_tag,
+        randomness_hr: randomness_hr,
+        randomness_vks: randomness_vks,
+        vks: random_point(&mut rng),
     };
 
     c.bench_function("serialize_full_tag", |b| {
@@ -341,31 +345,35 @@ fn deserialize_full_tag_bench(c: &mut Criterion) {
     let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
 
     let tag = Tag {
-        commitment_hr: commitment_hr.to_vec(),
-        commitment_vks: commitment_vks.to_vec(),
+        commitment_hr: commitment_hr,
+        commitment_vks: commitment_vks,
         exp_timestamp: 0,
         score: 0,
-        enc_sender_id: enc_sender_id.to_vec(),
+        enc_sender_id: EncSenderId(enc_sender_id),
         q_big: random_point(&mut rng),
         g_prime: random_point(&mut rng),
         x_big: random_point(&mut rng),
-        signature: signature.to_vec(),
+        signature: TagSignature(signature),
+    };
+
+    let report_tag = ReportTag {
+        tag,
+        proof: proof,
+        r_big: random_point(&mut rng),
     };
 
     let sender_tag = SenderTag {
-        tag,
-        randomness_hr: randomness_hr.to_vec(),
-        randomness_vks: randomness_vks.to_vec(),
+        report_tag,
+        randomness_hr: randomness_hr,
+        randomness_vks: randomness_vks,
         vks: random_point(&mut rng),
-        proof: proof,
-        r_big: random_point(&mut rng),
     };
 
     let vec = sender_tag.to_vec();
 
     c.bench_function("deserialize_full_tag", |b| {
         b.iter(|| {
-            let result = SenderTag::from_vec(&vec);
+            let result = SenderTag::from_slice(&vec);
             assert!(result.is_ok());
         });
     });
@@ -378,9 +386,11 @@ fn end_to_end_bench(c: &mut Criterion) {
             maximum_score: 100.0,
             report_threshold: 10,
             epoch_duration: 24,
+            epoch_start: 1614556800, // March 1, 2021 00:00:00
             tag_duration: 2,
             compute_reputation: None,
             noise_distribution: None,
+            max_vks_per_epoch: 100,
         },
         &mut rng,
     );
