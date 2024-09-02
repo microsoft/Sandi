@@ -20,14 +20,15 @@ fn get_tag_bench(c: &mut Criterion) {
         },
         &mut rng,
     );
-    let sender = Sender::new("sender1", &mut rng);
-    server.set_sender_epk(&sender.epk, &sender.handle);
+    let mut sender = Sender::new("sender1", &mut rng);
+    let _ = server.set_sender_epk(&sender.epk, &sender.handle);
 
     let receiver_addr = "receiver_addr";
+    let channel = sender.add_channel(receiver_addr, &mut rng);
 
     c.bench_function("get_tag", |b| {
         b.iter(|| {
-            let result = sender.get_tag(&receiver_addr, &server, &mut rng);
+            let result = sender.get_tag(&channel, &mut server, &mut rng);
             assert!(result.is_ok());
         })
     });
@@ -56,7 +57,7 @@ fn issue_tag_bench(c: &mut Criterion) {
 
     let sender_handle = "sender_handle";
     let sender = Sender::new(sender_handle, &mut rng);
-    server.set_sender_epk(&sender.epk, &sender.handle);
+    let _ = server.set_sender_epk(&sender.epk, &sender.handle);
 
     c.bench_function("issue_tag", |b| {
         b.iter(|| {
@@ -82,7 +83,7 @@ fn verify_tag_bench(c: &mut Criterion) {
         &mut rng,
     );
     let mut sender = Sender::new("sender1", &mut rng);
-    server.set_sender_epk(&sender.epk, &sender.handle);
+    let _ = server.set_sender_epk(&sender.epk, &sender.handle);
 
     let receiver_addr = "receiver_addr";
     let channel = sender.add_channel(receiver_addr, &mut rng);
@@ -125,7 +126,7 @@ fn report_tag_bench(c: &mut Criterion) {
     for i in 0..NUM_SENDERS {
         let sender_handle = format!("sender{}", i);
         let sender = Sender::new(&sender_handle, &mut rng);
-        server.set_sender_epk(&sender.epk, &sender.handle);
+        let _ = server.set_sender_epk(&sender.epk, &sender.handle);
         senders.push(sender);
     }
 
@@ -394,29 +395,24 @@ fn end_to_end_bench(c: &mut Criterion) {
         },
         &mut rng,
     );
-    let sender = Sender::new("sender1", &mut rng);
-    server.set_sender_epk(&sender.epk, &sender.handle);
+    let mut sender = Sender::new("sender1", &mut rng);
+    let _ = server.set_sender_epk(&sender.epk, &sender.handle);
     let verifying_key = server.get_verifying_key();
-    let sender_verifying_key = sender.get_verifying_key();
 
     let receiver_addr = "receiver_addr";
+    let channel = sender.add_channel(receiver_addr, &mut rng);
 
     c.bench_function("end_to_end", |b| {
         b.iter(|| {
             let tag = sender
-                .get_tag(receiver_addr, &server, &mut rng)
+                .get_tag(&channel, &mut server, &mut rng)
                 .unwrap();
             let _ = tag_verifier::verify(
                 receiver_addr,
-                &sender_verifying_key,
-                &tag.tag,
-                &tag.randomness_hr,
-                &tag.randomness_vks,
-                &tag.proof,
-                &tag.r_big,
+                &tag,
                 &verifying_key,
             );
-            let _ = server.report(tag.tag, tag.proof, tag.r_big);
+            let _ = server.report(&tag.report_tag);
             server.update_scores(&mut rng);
         })
     });
