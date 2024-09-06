@@ -19,6 +19,7 @@ chrono = "0.4"
 rand_chacha = "0.3"
 rand_distr = "0.4"
 flatbuffers = "23.5"
+lazy_static = "1.5"
 
 [dev-dependencies]
 criterion = "0.5"
