@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use chrono::Utc;
 
 use crate::accountability_server::AccountabilityServer;
 use crate::{epochs, sender_tag::SenderTag};

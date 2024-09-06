@@ -2,7 +2,7 @@ use crate::gaussian::{Gaussian, NoiseDistribution};
 use crate::nizqdleq;
 use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
 use crate::sender_tag::ReportTag;
-use crate::spin_lock::{Spinlock, SpinlockGuard};
+use crate::spin_lock::{SpinlockGuard};
 use crate::tag::{EncSenderId, Tag, TagSignature};
 use crate::time_provider::{DefaultTimeProvider, TimeProvider};
 use crate::utils::{

@@ -1,4 +1,4 @@
-use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::{ristretto::CompressedRistretto};
 use rand::rngs::OsRng;
 use crate::accountability_server::{AccServerParams, AccountabilityServer};
 
