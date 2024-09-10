@@ -14,7 +14,7 @@ pub mod tag_verifier;
 pub mod utils;
 pub mod gaussian;
 pub mod receiver;
-pub mod c_interface_as;
+pub mod c_interface;
 
 // private modules
 mod time_provider;
