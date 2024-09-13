@@ -99,8 +99,8 @@ pub extern "C" fn issue_tag(sender_handle: *const c_char, commitment_hr: *const 
             return -1;
         }
 
-        if tag_len < 304 {
-            LAST_ERROR = Some("tag_len should be at least 304".to_owned());
+        if tag_len < 320 {
+            LAST_ERROR = Some("tag_len should be at least 320".to_owned());
             return -1;
         }
     }
@@ -117,7 +117,14 @@ pub extern "C" fn issue_tag(sender_handle: *const c_char, commitment_hr: *const 
     match issue_result {
         Ok(tag) => {
             let tag_vec = tag.to_vec();
-            tag_result.copy_from_slice(&tag_vec);
+            if (tag_vec.len() as u64) > tag_len {
+                unsafe {
+                    let msg = format!("tag_len is too small: {}, required: {}", tag_len, tag_vec.len());
+                    LAST_ERROR = Some(msg);
+                }
+                return -1;
+            }
+            tag_result.copy_from_slice(&tag_vec.as_slice());
             return 0;
         },
         Err(err_msg) => {
