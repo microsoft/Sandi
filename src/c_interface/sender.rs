@@ -5,7 +5,8 @@ use super::common::LAST_ERROR;
 
 static mut SENDER_INSTANCE: Option<Sender> = None;
 
-pub extern "C" fn init_sender(handle: *const c_char) -> i32 {
+#[no_mangle]
+pub extern "C" fn sender_init_sender(handle: *const c_char) -> i32 {
     unsafe {
         if handle.is_null() {
             LAST_ERROR = Some("handle is null".to_owned());
@@ -22,7 +23,8 @@ pub extern "C" fn init_sender(handle: *const c_char) -> i32 {
     return 0;
 }
 
-pub extern "C" fn add_channel(receiver_addr: *const c_char, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
+#[no_mangle]
+pub extern "C" fn sender_add_channel(receiver_addr: *const c_char, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
     unsafe {
         if receiver_addr.is_null() {
             LAST_ERROR = Some("receiver_addr is null".to_owned());
@@ -68,5 +70,51 @@ pub extern "C" fn add_channel(receiver_addr: *const c_char, vks: *mut u8, vks_le
         sks_slice.copy_from_slice(result.sks.as_bytes());
 
         return 0;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn sender_generate_new_epoch_keys() -> i32 {
+    unsafe {
+        if SENDER_INSTANCE.is_none() {
+            LAST_ERROR = Some("SENDER is not initialized".to_owned());
+            return -1;
+        }
+
+        let sender = SENDER_INSTANCE.as_mut().unwrap();
+        let mut rng = OsRng;
+
+        sender.generate_new_epoch_keys(&mut rng);
+
+        return 0;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn sender_get_public_epoch_key(epk: *mut u8, epk_len: u64) -> i32 {
+    unsafe {
+        if SENDER_INSTANCE.is_none() {
+            LAST_ERROR = Some("SENDER is not initialized".to_owned());
+            return -1;
+        }
+
+        let sender = SENDER_INSTANCE.as_mut().unwrap();
+        let epk_comp = sender.epk.compress();
+        let bytes = epk_comp.as_bytes();
+
+        if epk.is_null() {
+            return bytes.len() as i32;
+        }
+
+        if epk_len < bytes.len().try_into().unwrap() {
+            let msg = format!("epk_len is not at least {}", bytes.len());
+            LAST_ERROR = Some(msg);
+            return -1;
+        }
+
+        let epk_slice = std::slice::from_raw_parts_mut(epk, bytes.len());
+        epk_slice.copy_from_slice(bytes);
+
+        return bytes.len() as i32;
     }
 }

@@ -9,7 +9,7 @@ pub extern "C" fn get_last_error(error: *mut c_char, error_len: u64) -> i32 {
             return 0;
         }
 
-        let last_error = unsafe { LAST_ERROR.as_ref().unwrap() };
+        let last_error = LAST_ERROR.as_ref().unwrap();
         if error.is_null() {
             return last_error.len() as i32;
         }
@@ -19,9 +19,7 @@ pub extern "C" fn get_last_error(error: *mut c_char, error_len: u64) -> i32 {
         }
 
         let c_str = std::ffi::CString::new(last_error.as_str()).unwrap();
-        unsafe {
-            std::ptr::copy_nonoverlapping(c_str.as_ptr(), error, last_error.len());
-        }
+        std::ptr::copy_nonoverlapping(c_str.as_ptr(), error, last_error.len());
 
         return last_error.len() as i32;
     }

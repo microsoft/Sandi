@@ -8,7 +8,7 @@ use super::common::LAST_ERROR;
 static mut ACC_SERVER_INSTANCE: Option<AccountabilityServer> = None;
 
 #[no_mangle]
-pub extern "C" fn init_acc_server(epoch_start: i64, epoch_duration: i64, tag_duration: i64, max_vks_per_epoch: i64) {
+pub extern "C" fn as_init_acc_server(epoch_start: i64, epoch_duration: i64, tag_duration: i64, max_vks_per_epoch: i64) {
     let params = AccServerParams {
         maximum_score: 100.0,
         report_threshold: 10,
@@ -27,7 +27,7 @@ pub extern "C" fn init_acc_server(epoch_start: i64, epoch_duration: i64, tag_dur
 }
 
 #[no_mangle]
-pub extern "C" fn set_sender_epk(epk: *const u8, epk_len: u64, sender_handle: *const c_char) -> i32 {
+pub extern "C" fn as_set_sender_epk(epk: *const u8, epk_len: u64, sender_handle: *const c_char) -> i32 {
     unsafe {
         if epk.is_null() {
             LAST_ERROR = Some("epk is null".to_owned());
@@ -67,7 +67,7 @@ pub extern "C" fn set_sender_epk(epk: *const u8, epk_len: u64, sender_handle: *c
 }
 
 #[no_mangle]
-pub extern "C" fn issue_tag(sender_handle: *const c_char, commitment_hr: *const u8, commitment_hr_len: u64, commitment_vks: *const u8, commitment_vks_len: u64, tag: *mut u8, tag_len: u64) -> i32 {
+pub extern "C" fn as_issue_tag(sender_handle: *const c_char, commitment_hr: *const u8, commitment_hr_len: u64, commitment_vks: *const u8, commitment_vks_len: u64, tag: *mut u8, tag_len: u64) -> i32 {
     unsafe {
         if sender_handle.is_null() {
             LAST_ERROR = Some("sender_handle is null".to_owned());
