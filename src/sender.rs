@@ -117,13 +117,13 @@ impl Sender {
         let vks_bytes = channel.vks.compress().to_bytes();
         match tag_res {
             Ok(tag) => {
-                return self.get_tag_from_as_tag(tag, &randomness_hr, &randomness_vks, &vks_bytes, rng);
+                return self.get_tag_from_as_tag(tag, randomness_hr, randomness_vks, &vks_bytes, rng);
             }
             Err(AccSvrError(err_msg)) => Err(SenderError(err_msg)),
         }
     }
 
-    pub fn get_tag_from_as_tag<R>(&self, tag: Tag, randomness_hr: &[u8], randomness_vks: &[u8], vks: &[u8], rng: &mut R) -> Result<SenderTag, SenderError>
+    pub fn get_tag_from_as_tag<R>(&self, tag: Tag, randomness_hr: [u8; 32], randomness_vks: [u8; 32], vks: &[u8], rng: &mut R) -> Result<SenderTag, SenderError>
     where 
         R: RngCore + CryptoRng,
     {
@@ -156,8 +156,8 @@ impl Sender {
                     Some(vks) => {
                         Ok(SenderTag {
                             report_tag,
-                            randomness_hr: randomness_hr.try_into().unwrap(),
-                            randomness_vks: randomness_vks.try_into().unwrap(),
+                            randomness_hr,
+                            randomness_vks,
                             vks
                         })
                     },
