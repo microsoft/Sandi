@@ -1,13 +1,10 @@
-use curve25519_dalek::{RistrettoPoint, Scalar};
+use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint, Scalar};
 use hmac::{Hmac, Mac};
 use rand::{CryptoRng, RngCore};
 use sha2::Sha256;
 
 use crate::{
-    accountability_server::{AccSvrError, AccountabilityServer},
-    nizqdleq,
-    sender_tag::{ReportTag, SenderTag},
-    utils::{basepoint_order, G},
+    accountability_server::{AccSvrError, AccountabilityServer}, nizqdleq, sender_tag::{ReportTag, SenderTag}, tag::Tag, utils::{basepoint_order, G}
 };
 
 pub struct Sender {
@@ -25,7 +22,7 @@ pub struct SenderChannel {
 }
 
 #[derive(Debug)]
-pub struct SenderError(String);
+pub struct SenderError(pub String);
 
 impl Sender {
     pub fn new<R>(handle: &str, rng: &mut R) -> Sender
@@ -117,38 +114,57 @@ impl Sender {
         let tag_res =
             accountability_server.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &self.handle, rng);
 
+        let vks_bytes = channel.vks.compress().to_bytes();
         match tag_res {
             Ok(tag) => {
-                // Check if X is valid
-                let new_x = self.esk * tag.g_prime;
-                if new_x != tag.x_big {
-                    return Err(SenderError("Invalid tag: X does not match".to_string()));
-                }
-                let r_big = self.esk * tag.q_big;
-                let z = nizqdleq::prove(
-                    &basepoint_order(),
-                    &tag.g_prime,
-                    &tag.x_big,
-                    &tag.q_big,
-                    &r_big,
-                    &self.esk,
-                    rng,
-                );
-
-                let report_tag = ReportTag {
-                    tag,
-                    proof: z,
-                    r_big,
-                };
-
-                Ok(SenderTag {
-                    report_tag,
-                    randomness_hr,
-                    randomness_vks,
-                    vks: channel.vks,
-                })
+                return self.get_tag_from_as_tag(tag, &randomness_hr, &randomness_vks, &vks_bytes, rng);
             }
             Err(AccSvrError(err_msg)) => Err(SenderError(err_msg)),
+        }
+    }
+
+    pub fn get_tag_from_as_tag<R>(&self, tag: Tag, randomness_hr: &[u8], randomness_vks: &[u8], vks: &[u8], rng: &mut R) -> Result<SenderTag, SenderError>
+    where 
+        R: RngCore + CryptoRng,
+    {
+        let new_x = self.esk * tag.g_prime;
+        if new_x != tag.x_big {
+            return Err(SenderError("Invalid tag: X does not match".to_string()));
+        }
+        let r_big = self.esk * tag.q_big;
+        let z = nizqdleq::prove(
+            &basepoint_order(),
+            &tag.g_prime,
+            &tag.x_big,
+            &tag.q_big,
+            &r_big,
+            &self.esk,
+            rng,
+        );
+
+        let report_tag = ReportTag {
+            tag,
+            proof: z,
+            r_big,
+        };
+
+        let vks_res = CompressedRistretto::from_slice(vks);
+        match vks_res {
+            Ok(vks) => {
+                let vsk_decompressed = vks.decompress();
+                match vsk_decompressed {
+                    Some(vks) => {
+                        Ok(SenderTag {
+                            report_tag,
+                            randomness_hr: randomness_hr.try_into().unwrap(),
+                            randomness_vks: randomness_vks.try_into().unwrap(),
+                            vks
+                        })
+                    },
+                    None => Err(SenderError("Failed to decompress vks".to_string())),
+                }
+            }
+            Err(_) => Err(SenderError("Failed to decompress vks".to_string())),
         }
     }
 }
