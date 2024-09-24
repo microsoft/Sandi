@@ -284,6 +284,8 @@ pub extern "C" fn sender_issue_tag(as_tag: *const u8, as_tag_len: u64, randomnes
                 match result {
                     Ok(sender_tag) => {
                         let sender_tag_buff = sender_tag.to_vec();
+                        let test = crate::sender_tag::SenderTag::from_slice(sender_tag_buff.as_slice());
+                        assert!(test.is_ok());
                         if sender_tag_buff.len() as u64 > sender_tag_len {
                             LAST_ERROR = Some(format!("sender_tag_len is too small: {}, required: {}", sender_tag_len, sender_tag_buff.len()));
                             return -1;

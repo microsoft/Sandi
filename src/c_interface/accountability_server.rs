@@ -27,6 +27,27 @@ pub extern "C" fn as_init_acc_server(epoch_start: i64, epoch_duration: i64, tag_
 }
 
 #[no_mangle]
+pub extern "C" fn as_get_verifying_key(verif_key: *mut u8, verif_key_len: u64) -> i32 {
+    unsafe {
+        if verif_key.is_null() {
+            LAST_ERROR = Some("verif_key is null".to_owned());
+            return -1;
+        }
+
+        if verif_key_len < 32 {
+            LAST_ERROR = Some("verif_key_len should be at least 32".to_owned());
+            return -1;
+        }
+    }
+
+    let acc_server = unsafe { ACC_SERVER_INSTANCE.as_mut().unwrap() };
+    let verifying_key = acc_server.get_verifying_key();
+    let verif_key_slice = unsafe { std::slice::from_raw_parts_mut(verif_key, verif_key_len.try_into().unwrap()) };
+    verif_key_slice.copy_from_slice(&verifying_key);
+    return 0;
+}
+
+#[no_mangle]
 pub extern "C" fn as_set_sender_epk(epk: *const u8, epk_len: u64, sender_handle: *const c_char) -> i32 {
     unsafe {
         if epk.is_null() {

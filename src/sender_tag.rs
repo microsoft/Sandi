@@ -66,7 +66,7 @@ impl SenderTag {
         let full_tag = crate::serialization::root_as_full_tag(bytes);
         if full_tag.is_err() {
             return Err(format!(
-                "Failed to deserialize tag: {}",
+                "Failed to deserialize sender tag: {}",
                 full_tag.unwrap_err()
             ));
         }
