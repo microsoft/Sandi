@@ -1,5 +1,6 @@
 use std::ffi::c_char;
-use crate::sender_tag::SenderTag;
+use acctblty::tag_verifier;
+use acctblty::sender_tag::SenderTag;
 
 use super::common::LAST_ERROR;
 
@@ -29,7 +30,7 @@ pub extern "C" fn verifier_verify_tag(receiver_addr: *const c_char, sender_tag: 
         let tag_result = SenderTag::from_slice(sender_tag);
         match tag_result {
             Ok(tag) => {
-                let verif_result = crate::tag_verifier::verify(receiver_addr, &tag, as_verif_key);
+                let verif_result = tag_verifier::verify(receiver_addr, &tag, as_verif_key);
                 match verif_result {
                     Ok(reputation) => {
                         return reputation as i32;

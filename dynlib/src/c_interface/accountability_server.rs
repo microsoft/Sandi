@@ -2,7 +2,7 @@ use std::os::raw::c_char;
 
 use curve25519_dalek::ristretto::CompressedRistretto;
 use rand::rngs::OsRng;
-use crate::accountability_server::{AccServerParams, AccountabilityServer};
+use acctblty::accountability_server::{AccServerParams, AccountabilityServer};
 use super::common::LAST_ERROR;
 
 static mut ACC_SERVER_INSTANCE: Option<AccountabilityServer> = None;
