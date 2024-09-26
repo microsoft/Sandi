@@ -1,6 +1,9 @@
 use std::process::Command;
 
 fn main() {
+    // Recompile if build.rs itself changes
+    println!("cargo:rerun-if-changed=build.rs");
+
     // Compile flatbuffers files
     println!("cargo:rerun-if-changed=fb/tag.fbs");
     println!("cargo:rerun-if-changed=fb/full_tag.fbs");
