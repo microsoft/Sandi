@@ -2,7 +2,7 @@ use std::os::raw::c_char;
 
 use curve25519_dalek::ristretto::CompressedRistretto;
 use rand::rngs::OsRng;
-use acctblty::accountability_server::{AccServerParams, AccountabilityServer};
+use acctblty::{accountability_server::{AccServerParams, AccountabilityServer}, sender_tag::SenderTag};
 use super::common::LAST_ERROR;
 
 static mut ACC_SERVER_INSTANCE: Option<AccountabilityServer> = None;
@@ -153,6 +153,42 @@ pub extern "C" fn as_issue_tag(sender_handle: *const c_char, commitment_hr: *con
                 LAST_ERROR = Some(err_msg.0);
             }
             return -1;
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn as_report_tag(tag: *const u8, tag_len: u64) -> i32 {
+    unsafe {
+        if tag.is_null() {
+            LAST_ERROR = Some("tag is null".to_owned());
+            return -1;
+        }
+
+        if ACC_SERVER_INSTANCE.is_none() {
+            LAST_ERROR = Some("Accountability server is not initialized".to_owned());
+            return -1;
+        }
+
+        let tag_buff = std::slice::from_raw_parts(tag, tag_len.try_into().unwrap());
+        let acc_server = ACC_SERVER_INSTANCE.as_mut().unwrap();
+
+        let sender_tag = SenderTag::from_slice(tag_buff);
+        match sender_tag {
+            Ok(sender_tag) => {
+                let report_result = acc_server.report(&sender_tag.report_tag);
+                match report_result {
+                    Ok(_) => return 0,
+                    Err(err_msg) => {
+                        LAST_ERROR = Some(err_msg.0);
+                        return -1;
+                    }
+                }
+            },
+            Err(err_msg) => {
+                LAST_ERROR = Some(err_msg.to_string());
+                return -1;
+            }
         }
     }
 }
