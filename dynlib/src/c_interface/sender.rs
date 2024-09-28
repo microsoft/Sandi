@@ -3,7 +3,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use rand::{rngs::OsRng, RngCore};
 use acctblty::{sender::Sender, sender_tag::SenderTag, tag::Tag};
-use super::common::LAST_ERROR;
+use super::common::set_last_error;
 
 static mut SENDER_INSTANCE: Option<Sender> = None;
 
@@ -11,7 +11,7 @@ static mut SENDER_INSTANCE: Option<Sender> = None;
 pub extern "C" fn sender_init_sender(handle: *const c_char) -> i32 {
     unsafe {
         if handle.is_null() {
-            LAST_ERROR = Some("handle is null".to_owned());
+            set_last_error("handle is null");
             return -1;
         }
 
@@ -29,32 +29,32 @@ pub extern "C" fn sender_init_sender(handle: *const c_char) -> i32 {
 pub extern "C" fn sender_add_channel(receiver_addr: *const c_char, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
     unsafe {
         if receiver_addr.is_null() {
-            LAST_ERROR = Some("receiver_addr is null".to_owned());
+            set_last_error("receiver_addr is null");
             return -1;
         }
 
         if vks.is_null() {
-            LAST_ERROR = Some("vks is null".to_owned());
+            set_last_error("vks is null");
             return -1;
         }
 
         if sks.is_null() {
-            LAST_ERROR = Some("sks is null".to_owned());
+            set_last_error("sks is null");
             return -1;
         }
 
         if vks_len < 32 {
-            LAST_ERROR = Some("vks_len is not at least 32".to_owned());
+            set_last_error("vks_len is not at least 32");
             return -1;
         }
 
         if sks_len < 32 {
-            LAST_ERROR = Some("sks_len is not at least 32".to_owned());
+            set_last_error("sks_len is not at least 32");
             return -1;
         }
 
         if SENDER_INSTANCE.is_none() {
-            LAST_ERROR = Some("SENDER is not initialized".to_owned());
+            set_last_error("SENDER is not initialized");
             return -1;
         }
 
@@ -79,7 +79,7 @@ pub extern "C" fn sender_add_channel(receiver_addr: *const c_char, vks: *mut u8,
 pub extern "C" fn sender_generate_new_epoch_keys() -> i32 {
     unsafe {
         if SENDER_INSTANCE.is_none() {
-            LAST_ERROR = Some("SENDER is not initialized".to_owned());
+            set_last_error("SENDER is not initialized");
             return -1;
         }
 
@@ -96,7 +96,7 @@ pub extern "C" fn sender_generate_new_epoch_keys() -> i32 {
 pub extern "C" fn sender_get_public_epoch_key(epk: *mut u8, epk_len: u64) -> i32 {
     unsafe {
         if SENDER_INSTANCE.is_none() {
-            LAST_ERROR = Some("SENDER is not initialized".to_owned());
+            set_last_error("SENDER is not initialized");
             return -1;
         }
 
@@ -110,7 +110,7 @@ pub extern "C" fn sender_get_public_epoch_key(epk: *mut u8, epk_len: u64) -> i32
 
         if epk_len < bytes.len().try_into().unwrap() {
             let msg = format!("epk_len is not at least {}", bytes.len());
-            LAST_ERROR = Some(msg);
+            set_last_error(&msg);
             return -1;
         }
 
@@ -125,52 +125,52 @@ pub extern "C" fn sender_get_public_epoch_key(epk: *mut u8, epk_len: u64) -> i32
 pub extern "C" fn sender_get_commitments(receiver_addr: *const c_char, vks: *const u8, vks_len: u64, commitment_hr: *mut u8, commitment_hr_len: u64, commitment_vks: *mut u8, commitment_vks_len: u64, randomness_hr: *mut u8, randomness_hr_len: u64, randomness_vks: *mut u8, randomness_vks_len: u64) -> i32 {
     unsafe {
         if receiver_addr.is_null() {
-            LAST_ERROR = Some("receiver_addr is null".to_owned());
+            set_last_error("receiver_addr is null");
             return -1;
         }
 
         if vks.is_null() {
-            LAST_ERROR = Some("vks is null".to_owned());
+            set_last_error("vks is null");
             return -1;
         }
 
         if commitment_hr.is_null() {
-            LAST_ERROR = Some("commitment_hr is null".to_owned());
+            set_last_error("commitment_hr is null");
             return -1;
         }
 
         if commitment_vks.is_null() {
-            LAST_ERROR = Some("commitment_vks is null".to_owned());
+            set_last_error("commitment_vks is null");
             return -1;
         }
 
         if commitment_hr_len < 32 {
-            LAST_ERROR = Some("commitment_hr_len is not at least 32".to_owned());
+            set_last_error("commitment_hr_len is not at least 32");
             return -1;
         }
 
         if commitment_vks_len < 32 {
-            LAST_ERROR = Some("commitment_vks_len is not at least 32".to_owned());
+            set_last_error("commitment_vks_len is not at least 32");
             return -1;
         }
 
         if randomness_hr.is_null() {
-            LAST_ERROR = Some("randomness_hr is null".to_owned());
+            set_last_error("randomness_hr is null");
             return -1;
         }
 
         if randomness_vks.is_null() {
-            LAST_ERROR = Some("randomness_vks is null".to_owned());
+            set_last_error("randomness_vks is null");
             return -1;
         }
 
         if randomness_hr_len < 32 {
-            LAST_ERROR = Some("randomness_hr_len is not at least 32".to_owned());
+            set_last_error("randomness_hr_len is not at least 32");
             return -1;
         }
 
         if randomness_vks_len < 32 {
-            LAST_ERROR = Some("randomness_vks_len is not at least 32".to_owned());
+            set_last_error("randomness_vks_len is not at least 32");
             return -1;
         }
 
@@ -209,57 +209,57 @@ pub extern "C" fn sender_get_commitments(receiver_addr: *const c_char, vks: *con
 pub extern "C" fn sender_issue_tag(as_tag: *const u8, as_tag_len: u64, randomness_hr: *const u8, randomness_hr_len: u64, randomness_vks: *const u8, randomness_vks_len: u64, vks: *const u8, vks_len: u64, sender_tag: *mut u8, sender_tag_len: u64) -> i32 {
     unsafe {
         if SENDER_INSTANCE.is_none() {
-            LAST_ERROR = Some("SENDER is not initialized".to_owned());
+            set_last_error("SENDER is not initialized");
             return -1;
         }
 
         if as_tag.is_null() {
-            LAST_ERROR = Some("as_tag is null".to_owned());
+            set_last_error("as_tag is null");
             return -1;
         }
 
         if randomness_hr.is_null() {
-            LAST_ERROR = Some("randomness_hr is null".to_owned());
+            set_last_error("randomness_hr is null");
             return -1;
         }
 
         if randomness_vks.is_null() {
-            LAST_ERROR = Some("randomness_vks is null".to_owned());
+            set_last_error("randomness_vks is null");
             return -1;
         }
 
         if vks.is_null() {
-            LAST_ERROR = Some("vks is null".to_owned());
+            set_last_error("vks is null");
             return -1;
         }
 
         if as_tag_len < 32 {
-            LAST_ERROR = Some("as_tag_len is not at least 32".to_owned());
+            set_last_error("as_tag_len is not at least 32");
             return -1;
         }
 
         if randomness_hr_len < 32 {
-            LAST_ERROR = Some("randomness_hr_len is not at least 32".to_owned());
+            set_last_error("randomness_hr_len is not at least 32");
             return -1;
         }
 
         if randomness_vks_len < 32 {
-            LAST_ERROR = Some("randomness_vks_len is not at least 32".to_owned());
+            set_last_error("randomness_vks_len is not at least 32");
             return -1;
         }
 
         if vks_len < 32 {
-            LAST_ERROR = Some("vks_len is not at least 32".to_owned());
+            set_last_error("vks_len is not at least 32");
             return -1;
         }
 
         if sender_tag.is_null() {
-            LAST_ERROR = Some("sender_tag is null".to_owned());
+            set_last_error("sender_tag is null");
             return -1;
         }
 
         if sender_tag_len < 320 {
-            LAST_ERROR = Some("sender_tag_len should be at least 320".to_owned());
+            set_last_error("sender_tag_len should be at least 320");
             return -1;
         }
 
@@ -287,7 +287,7 @@ pub extern "C" fn sender_issue_tag(as_tag: *const u8, as_tag_len: u64, randomnes
                         let test = SenderTag::from_slice(sender_tag_buff.as_slice());
                         assert!(test.is_ok());
                         if sender_tag_buff.len() as u64 > sender_tag_len {
-                            LAST_ERROR = Some(format!("sender_tag_len is too small: {}, required: {}", sender_tag_len, sender_tag_buff.len()));
+                            set_last_error(&format!("sender_tag_len is too small: {}, required: {}", sender_tag_len, sender_tag_buff.len()));
                             return -1;
                         }
 
@@ -295,13 +295,13 @@ pub extern "C" fn sender_issue_tag(as_tag: *const u8, as_tag_len: u64, randomnes
                         return 0;
                     },
                     Err(e) => {
-                        LAST_ERROR = Some(format!("Error issuing tag: {}", e.0));
+                        set_last_error(&format!("Error issuing tag: {}", e.0));
                         return -1;
                     }
                 }
             }
             Err(e) => {
-                LAST_ERROR = Some(format!("Error reading AS tag: {}", e.to_string()));
+                set_last_error(&format!("Error reading AS tag: {}", e.to_string()));
                 return -1;
             }
         }

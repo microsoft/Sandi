@@ -1,15 +1,21 @@
 use std::os::raw::c_char;
 
-pub(crate) static mut LAST_ERROR: Option<String> = None;
+thread_local! {
+    static LAST_ERROR: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+}
 
 #[no_mangle]
 pub extern "C" fn get_last_error(error: *mut c_char, error_len: u64) -> i32 {
     unsafe {
-        if LAST_ERROR.is_none() {
+        let is_empty = LAST_ERROR.with(|le| le.borrow().is_none());
+        if is_empty {
             return 0;
         }
 
-        let last_error = LAST_ERROR.as_ref().unwrap();
+        let last_error = LAST_ERROR.with(|le| {
+            le.borrow().as_ref().unwrap().clone()
+        });
+
         if error.is_null() {
             return last_error.len() as i32;
         }
@@ -23,4 +29,10 @@ pub extern "C" fn get_last_error(error: *mut c_char, error_len: u64) -> i32 {
 
         return last_error.len() as i32;
     }
+}
+
+pub(crate) fn set_last_error(err: &str) {
+    LAST_ERROR.with(|le| {
+        *le.borrow_mut() = Some(err.to_string());
+    });
 }

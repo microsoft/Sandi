@@ -3,7 +3,7 @@ use std::os::raw::c_char;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use rand::rngs::OsRng;
 use acctblty::{accountability_server::{AccServerParams, AccountabilityServer}, sender_tag::SenderTag};
-use super::common::LAST_ERROR;
+use super::common::set_last_error;
 
 static mut ACC_SERVER_INSTANCE: Option<AccountabilityServer> = None;
 
@@ -28,16 +28,14 @@ pub extern "C" fn as_init_acc_server(epoch_start: i64, epoch_duration: i64, tag_
 
 #[no_mangle]
 pub extern "C" fn as_get_verifying_key(verif_key: *mut u8, verif_key_len: u64) -> i32 {
-    unsafe {
-        if verif_key.is_null() {
-            LAST_ERROR = Some("verif_key is null".to_owned());
-            return -1;
-        }
+    if verif_key.is_null() {
+        set_last_error("verif_key is null");
+        return -1;
+    }
 
-        if verif_key_len < 32 {
-            LAST_ERROR = Some("verif_key_len should be at least 32".to_owned());
-            return -1;
-        }
+    if verif_key_len < 32 {
+        set_last_error("verif_key_len should be at least 32");
+        return -1;
     }
 
     let acc_server = unsafe { ACC_SERVER_INSTANCE.as_mut().unwrap() };
@@ -49,16 +47,14 @@ pub extern "C" fn as_get_verifying_key(verif_key: *mut u8, verif_key_len: u64) -
 
 #[no_mangle]
 pub extern "C" fn as_set_sender_epk(epk: *const u8, epk_len: u64, sender_handle: *const c_char) -> i32 {
-    unsafe {
-        if epk.is_null() {
-            LAST_ERROR = Some("epk is null".to_owned());
-            return -1;
-        }
+    if epk.is_null() {
+        set_last_error("epk is null");
+        return -1;
+    }
 
-        if sender_handle.is_null() {
-            LAST_ERROR = Some("sender_handle is null".to_owned());
-            return -1;
-        }
+    if sender_handle.is_null() {
+        set_last_error("sender_handle is null");
+        return -1;
     }
 
     let sender_handle = unsafe { std::ffi::CStr::from_ptr(sender_handle).to_str().unwrap() };
@@ -72,16 +68,12 @@ pub extern "C" fn as_set_sender_epk(epk: *const u8, epk_len: u64, sender_handle:
                 return 0;
             },
             Err(err_msg) => {
-                unsafe {
-                    LAST_ERROR = Some(err_msg.0);
-                }
+                set_last_error(&err_msg.0);
                 return -1;
             }
         },
         Err(err_msg) => {
-            unsafe {
-                LAST_ERROR = Some(err_msg.to_owned());
-            }
+            set_last_error(err_msg);
             return -1;
         }
     }
@@ -89,41 +81,39 @@ pub extern "C" fn as_set_sender_epk(epk: *const u8, epk_len: u64, sender_handle:
 
 #[no_mangle]
 pub extern "C" fn as_issue_tag(sender_handle: *const c_char, commitment_hr: *const u8, commitment_hr_len: u64, commitment_vks: *const u8, commitment_vks_len: u64, tag: *mut u8, tag_len: u64) -> i32 {
-    unsafe {
-        if sender_handle.is_null() {
-            LAST_ERROR = Some("sender_handle is null".to_owned());
-            return -1;
-        }
+    if sender_handle.is_null() {
+        set_last_error("sender_handle is null");
+        return -1;
+    }
 
-        if commitment_hr.is_null() {
-            LAST_ERROR = Some("commitment_hr is null".to_owned());
-            return -1;
-        }
+    if commitment_hr.is_null() {
+        set_last_error("commitment_hr is null");
+        return -1;
+    }
 
-        if commitment_vks.is_null() {
-            LAST_ERROR = Some("commitment_vks is null".to_owned());
-            return -1;
-        }
+    if commitment_vks.is_null() {
+        set_last_error("commitment_vks is null");
+        return -1;
+    }
 
-        if commitment_hr_len != 32 {
-            LAST_ERROR = Some("commitment_hr_len is not 32".to_owned());
-            return -1;
-        }
+    if commitment_hr_len != 32 {
+        set_last_error("commitment_hr_len is not 32");
+        return -1;
+    }
 
-        if commitment_vks_len != 32 {
-            LAST_ERROR = Some("commitment_vks_len is not 32".to_owned());
-            return -1;
-        }
+    if commitment_vks_len != 32 {
+        set_last_error("commitment_vks_len is not 32");
+        return -1;
+    }
 
-        if tag.is_null() {
-            LAST_ERROR = Some("tag is null".to_owned());
-            return -1;
-        }
+    if tag.is_null() {
+        set_last_error("tag is null");
+        return -1;
+    }
 
-        if tag_len < 320 {
-            LAST_ERROR = Some("tag_len should be at least 320".to_owned());
-            return -1;
-        }
+    if tag_len < 320 {
+        set_last_error("tag_len should be at least 320");
+        return -1;
     }
 
     let sender_handle = unsafe { std::ffi::CStr::from_ptr(sender_handle).to_str().unwrap() };
@@ -139,19 +129,15 @@ pub extern "C" fn as_issue_tag(sender_handle: *const c_char, commitment_hr: *con
         Ok(tag) => {
             let tag_vec = tag.to_vec();
             if (tag_vec.len() as u64) > tag_len {
-                unsafe {
-                    let msg = format!("tag_len is too small: {}, required: {}", tag_len, tag_vec.len());
-                    LAST_ERROR = Some(msg);
-                }
+                let msg = format!("tag_len is too small: {}, required: {}", tag_len, tag_vec.len());
+                set_last_error(&msg);
                 return -1;
             }
             tag_result.copy_from_slice(&tag_vec.as_slice());
             return 0;
         },
         Err(err_msg) => {
-            unsafe {
-                LAST_ERROR = Some(err_msg.0);
-            }
+            set_last_error(&err_msg.0);
             return -1;
         }
     }
@@ -161,12 +147,12 @@ pub extern "C" fn as_issue_tag(sender_handle: *const c_char, commitment_hr: *con
 pub extern "C" fn as_report_tag(tag: *const u8, tag_len: u64) -> i32 {
     unsafe {
         if tag.is_null() {
-            LAST_ERROR = Some("tag is null".to_owned());
+            set_last_error("tag is null");
             return -1;
         }
 
         if ACC_SERVER_INSTANCE.is_none() {
-            LAST_ERROR = Some("Accountability server is not initialized".to_owned());
+            set_last_error("Accountability server is not initialized");
             return -1;
         }
 
@@ -180,13 +166,13 @@ pub extern "C" fn as_report_tag(tag: *const u8, tag_len: u64) -> i32 {
                 match report_result {
                     Ok(_) => return 0,
                     Err(err_msg) => {
-                        LAST_ERROR = Some(err_msg.0);
+                        set_last_error(&err_msg.0);
                         return -1;
                     }
                 }
             },
             Err(err_msg) => {
-                LAST_ERROR = Some(err_msg.to_string());
+                set_last_error(&err_msg);
                 return -1;
             }
         }
