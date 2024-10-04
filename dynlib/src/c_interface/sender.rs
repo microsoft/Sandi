@@ -1,17 +1,63 @@
-use std::{ffi::CStr, os::raw::c_char};
+use std::{collections::HashMap, ffi::CStr, os::raw::c_char};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use rand::{rngs::OsRng, RngCore};
 use acctblty::{sender::Sender, sender_tag::SenderTag, tag::Tag};
 use super::common::set_last_error;
 
-static mut SENDER_INSTANCE: Option<Sender> = None;
+static mut SENDER_INSTANCES: Option<HashMap<u64, Sender>> = None;
+
+struct SenderInstError(pub String);
+
+fn get_sender_mut_ref(sender_id: u64) -> Result<&'static mut Sender, SenderInstError> {
+    unsafe {
+        if SENDER_INSTANCES.is_none() {
+            return Err(SenderInstError("SENDER_INSTANCES is not initialized".to_string()));
+        }
+
+        let senders = SENDER_INSTANCES.as_mut().unwrap();
+        match senders.get_mut(&sender_id) {
+            Some(sender) => Ok(sender),
+            None => Err(SenderInstError("Sender not found".to_string()))
+        }
+    }
+}
+
+fn get_sender_ref(server_id: u64) -> Result<&'static Sender, SenderInstError> {
+    unsafe {
+        if SENDER_INSTANCES.is_none() {
+            return Err(SenderInstError("SERVER is not initialized".to_string()));
+        }
+
+        let senders = SENDER_INSTANCES.as_mut().unwrap();
+        match senders.get(&server_id) {
+            Some(sender) => Ok(sender),
+            None => Err(SenderInstError("Server not found".to_string()))
+        }
+    }
+}
+
+fn add_sender_instance(sender_id: u64, sender: Sender) {
+    unsafe {
+        if SENDER_INSTANCES.is_none() {
+            SENDER_INSTANCES = Some(HashMap::new());
+        }
+
+        let senders = SENDER_INSTANCES.as_mut().unwrap();
+        senders.insert(sender_id, sender);
+    }
+}
 
 #[no_mangle]
-pub extern "C" fn sender_init_sender(handle: *const c_char) -> i32 {
+pub extern "C" fn sender_init_sender(handle: *const c_char, sender_id: *mut u64) -> i32 {
     unsafe {
         if handle.is_null() {
             set_last_error("handle is null");
+            return -1;
+        }
+
+        if sender_id.is_null() {
+            set_last_error("sender_id is null");
             return -1;
         }
 
@@ -19,14 +65,17 @@ pub extern "C" fn sender_init_sender(handle: *const c_char) -> i32 {
         let mut rng = OsRng;
 
         let sender = Sender::new(handle_str, &mut rng);
-        SENDER_INSTANCE = Some(sender);
-    }
+        let sdr_id = rng.next_u64();
 
-    return 0;
+        add_sender_instance(sdr_id, sender);
+        *sender_id = sdr_id;
+
+        return 0;
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn sender_add_channel(receiver_addr: *const c_char, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
+pub extern "C" fn sender_add_channel(sender_id: u64, receiver_addr: *const c_char, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
     unsafe {
         if receiver_addr.is_null() {
             set_last_error("receiver_addr is null");
@@ -53,14 +102,16 @@ pub extern "C" fn sender_add_channel(receiver_addr: *const c_char, vks: *mut u8,
             return -1;
         }
 
-        if SENDER_INSTANCE.is_none() {
-            set_last_error("SENDER is not initialized");
-            return -1;
-        }
-
         let receiver_addr = CStr::from_ptr(receiver_addr).to_str().unwrap();
 
-        let sender = SENDER_INSTANCE.as_mut().unwrap();
+        let sender = match get_sender_mut_ref(sender_id) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(&e.0);
+                return -1;
+            }
+        };
+
         let mut rng = OsRng;
 
         let result = sender.add_channel(receiver_addr, &mut rng);
@@ -76,31 +127,33 @@ pub extern "C" fn sender_add_channel(receiver_addr: *const c_char, vks: *mut u8,
 }
 
 #[no_mangle]
-pub extern "C" fn sender_generate_new_epoch_keys() -> i32 {
-    unsafe {
-        if SENDER_INSTANCE.is_none() {
-            set_last_error("SENDER is not initialized");
+pub extern "C" fn sender_generate_new_epoch_keys(sender_id: u64) -> i32 {
+    let sender = match get_sender_mut_ref(sender_id) {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(&e.0);
             return -1;
         }
+    };
 
-        let sender = SENDER_INSTANCE.as_mut().unwrap();
-        let mut rng = OsRng;
+    let mut rng = OsRng;
 
-        sender.generate_new_epoch_keys(&mut rng);
+    sender.generate_new_epoch_keys(&mut rng);
 
-        return 0;
-    }
+    return 0;
 }
 
 #[no_mangle]
-pub extern "C" fn sender_get_public_epoch_key(epk: *mut u8, epk_len: u64) -> i32 {
+pub extern "C" fn sender_get_public_epoch_key(sender_id: u64, epk: *mut u8, epk_len: u64) -> i32 {
     unsafe {
-        if SENDER_INSTANCE.is_none() {
-            set_last_error("SENDER is not initialized");
-            return -1;
-        }
+        let sender = match get_sender_ref(sender_id) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(&e.0);
+                return -1;
+            }
+        };
 
-        let sender = SENDER_INSTANCE.as_mut().unwrap();
         let epk_comp = sender.epk.compress();
         let bytes = epk_comp.as_bytes();
 
@@ -206,13 +259,8 @@ pub extern "C" fn sender_get_commitments(receiver_addr: *const c_char, vks: *con
 }
 
 #[no_mangle]
-pub extern "C" fn sender_issue_tag(as_tag: *const u8, as_tag_len: u64, randomness_hr: *const u8, randomness_hr_len: u64, randomness_vks: *const u8, randomness_vks_len: u64, vks: *const u8, vks_len: u64, sender_tag: *mut u8, sender_tag_len: u64) -> i32 {
+pub extern "C" fn sender_issue_tag(sender_id: u64, as_tag: *const u8, as_tag_len: u64, randomness_hr: *const u8, randomness_hr_len: u64, randomness_vks: *const u8, randomness_vks_len: u64, vks: *const u8, vks_len: u64, sender_tag: *mut u8, sender_tag_len: u64) -> i32 {
     unsafe {
-        if SENDER_INSTANCE.is_none() {
-            set_last_error("SENDER is not initialized");
-            return -1;
-        }
-
         if as_tag.is_null() {
             set_last_error("as_tag is null");
             return -1;
@@ -274,7 +322,14 @@ pub extern "C" fn sender_issue_tag(as_tag: *const u8, as_tag_len: u64, randomnes
 
         match tag_result {
             Ok(tag) => {
-                let sender = SENDER_INSTANCE.as_mut().unwrap();
+                let sender = match get_sender_mut_ref(sender_id) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        set_last_error(&e.0);
+                        return -1;
+                    }
+                };
+
                 let result = sender.get_tag_from_as_tag(
                     tag,
                     randomness_hr_slice.try_into().unwrap(),
@@ -305,5 +360,38 @@ pub extern "C" fn sender_issue_tag(as_tag: *const u8, as_tag_len: u64, randomnes
                 return -1;
             }
         }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn sender_destroy_sender(sender_id: u64) {
+    unsafe {
+        match SENDER_INSTANCES {
+            Some(ref mut senders) => {
+                senders.remove(&sender_id);
+            },
+            None => {
+                // Nothing to destroy
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::rngs::OsRng;
+
+    #[test]
+    fn test_sender_init_sender() {
+        let handle = "test";
+        let sender_id: u64 = 0;
+        let mut rng = OsRng;
+        let sender = super::Sender::new(handle, &mut rng);
+        super::add_sender_instance(sender_id, sender);
+        let sender_ref = super::get_sender_ref(sender_id);
+        assert!(sender_ref.is_ok());
+        super::sender_destroy_sender(sender_id);
+        let sender_ref = super::get_sender_ref(sender_id);
+        assert!(sender_ref.is_err());
     }
 }
