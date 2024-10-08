@@ -142,6 +142,49 @@ pub extern "C" fn as_set_sender_epk(acc_server_id: u64, epk: *const u8, epk_len:
 }
 
 #[no_mangle]
+pub extern "C" fn as_get_sender_epk(acc_server_id: u64, sender_handle: *const c_char, epk: *mut u8, epk_len: u64) -> i32 {
+    if sender_handle.is_null() {
+        set_last_error("sender_handle is null");
+        return -1;
+    }
+
+    if epk.is_null() {
+        set_last_error("epk is null");
+        return -1;
+    }
+
+    if epk_len < 32 {
+        set_last_error("epk_len should be at least 32");
+        return -1;
+    }
+
+    let sender_handle = unsafe { std::ffi::CStr::from_ptr(sender_handle).to_str().unwrap() };
+    let epk_result = unsafe { std::slice::from_raw_parts_mut(epk, epk_len.try_into().unwrap()) };
+
+    let acc_server = get_acc_server_ref(acc_server_id);
+    match acc_server {
+        Ok(acc_server) => {
+            let epk = acc_server.get_sender_epk(sender_handle);
+            match epk {
+                Ok(epk) => {
+                    let epk_slice = epk.compress().to_bytes();
+                    epk_result.copy_from_slice(&epk_slice);
+                    return 0;
+                },
+                Err(err) => {
+                    set_last_error(format!("Sender not found: {}", err.0).as_str());
+                    return -1;
+                }
+            }
+        },
+        Err(err_msg) => {
+            set_last_error(&err_msg.0);
+            return -1;
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn as_issue_tag(acc_server_id: u64, sender_handle: *const c_char, commitment_hr: *const u8, commitment_hr_len: u64, commitment_vks: *const u8, commitment_vks_len: u64, tag: *mut u8, tag_len: u64) -> i32 {
     if sender_handle.is_null() {
         set_last_error("sender_handle is null");
