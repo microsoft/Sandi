@@ -127,6 +127,83 @@ pub extern "C" fn sender_add_channel(sender_id: u64, receiver_addr: *const c_cha
 }
 
 #[no_mangle]
+pub extern "C" fn sender_get_channel_count(sender_id: u64, receiver_handle: *const c_char) -> i32 {
+    unsafe {
+        if receiver_handle.is_null() {
+            set_last_error("receiver_handle is null");
+            return -1;
+        }
+
+        let receiver_handle = CStr::from_ptr(receiver_handle).to_str().unwrap();
+
+        let sender = match get_sender_ref(sender_id) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(&e.0);
+                return -1;
+            }
+        };
+
+        let channels = sender.get_channels(receiver_handle);
+        return channels.len() as i32;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn sender_get_channel(sender_id: u64, receiver_handle: *const c_char, channel_idx: u64, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
+    unsafe {
+        if receiver_handle.is_null() {
+            set_last_error("receiver_handle is null");
+            return -1;
+        }
+
+        if vks.is_null() {
+            set_last_error("vks is null");
+            return -1;
+        }
+
+        if sks.is_null() {
+            set_last_error("sks is null");
+            return -1;
+        }
+
+        if vks_len < 32 {
+            set_last_error("vks_len is not at least 32");
+            return -1;
+        }
+
+        if sks_len < 32 {
+            set_last_error("sks_len is not at least 32");
+            return -1;
+        }
+
+        let receiver_handle = CStr::from_ptr(receiver_handle).to_str().unwrap();
+
+        let sender = match get_sender_ref(sender_id) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(&e.0);
+                return -1;
+            }
+        };
+
+        let channels = sender.get_channels(receiver_handle);
+        if channel_idx >= channels.len() as u64 {
+            set_last_error(&format!("Channel index out of bounds: {}", channel_idx));
+            return -1;
+        }
+
+        let channel = channels[channel_idx as usize];
+        let vks_slice = std::slice::from_raw_parts_mut(vks, 32);
+        vks_slice.copy_from_slice(channel.vks.compress().as_bytes());
+        let sks_slice = std::slice::from_raw_parts_mut(sks, 32);
+        sks_slice.copy_from_slice(channel.sks.as_bytes());
+
+        return 0;
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn sender_generate_new_epoch_keys(sender_id: u64) -> i32 {
     let sender = match get_sender_mut_ref(sender_id) {
         Ok(s) => s,
@@ -357,6 +434,70 @@ pub extern "C" fn sender_issue_tag(sender_id: u64, as_tag: *const u8, as_tag_len
             }
             Err(e) => {
                 set_last_error(&format!("Error reading AS tag: {}", e.to_string()));
+                return -1;
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn sender_serialize(sender_id: u64, buffer: *mut u8, buffer_len: u64) -> i32 {
+    unsafe {
+        // When buffer is null we will return the actual size needed to serialize
+        let sender = match get_sender_ref(sender_id) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(&e.0);
+                return -1;
+            }
+        };
+
+        let sender_bytes = sender.to_bytes();
+        if buffer.is_null() {
+            return sender_bytes.len() as i32;
+        }
+
+        if buffer_len < sender_bytes.len().try_into().unwrap() {
+            let msg = format!("buffer_len is not at least {}", sender_bytes.len());
+            set_last_error(&msg);
+            return -1;
+        }
+
+        let buffer_slice = std::slice::from_raw_parts_mut(buffer, sender_bytes.len());
+        buffer_slice.copy_from_slice(sender_bytes.as_slice());
+        return sender_bytes.len() as i32;
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn sender_deserialize(sender_bytes: *const u8, sender_bytes_len: u64, sender_id: *mut u64) -> i32 {
+    unsafe {
+        if sender_bytes.is_null() {
+            set_last_error("sender_bytes is null");
+            return -1;
+        }
+
+        if sender_bytes_len < 1 {
+            set_last_error("sender_bytes_len is less than 1");
+            return -1;
+        }
+
+        if sender_id.is_null() {
+            set_last_error("sender_id is null");
+            return -1;
+        }
+
+        let sender_bytes_slice = std::slice::from_raw_parts(sender_bytes, sender_bytes_len.try_into().unwrap());
+        let sender_result = Sender::from_slice(sender_bytes_slice);
+        match sender_result {
+            Ok(sender) => {
+                let sdr_id = OsRng.next_u64();
+                add_sender_instance(sdr_id, sender);
+                *sender_id = sdr_id;
+                return 0;
+            },
+            Err(e) => {
+                set_last_error(&format!("Error deserializing sender: {}", e.0));
                 return -1;
             }
         }

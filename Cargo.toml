@@ -9,6 +9,7 @@ crate-type = ["lib"]
 [dependencies]
 sha2 = { version = "0.10" }
 serde = { version = "1" }
+serde_json = { version = "1" }
 rand = { version = "0.8" }
 aes = "0.8"
 cbc = "0.1"

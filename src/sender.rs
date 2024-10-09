@@ -1,12 +1,14 @@
 use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint, Scalar};
 use hmac::{Hmac, Mac};
 use rand::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 use crate::{
     accountability_server::{AccSvrError, AccountabilityServer}, nizqdleq, sender_tag::{ReportTag, SenderTag}, tag::Tag, utils::{basepoint_order, G}
 };
 
+#[derive(Serialize, Deserialize)]
 pub struct Sender {
     pub handle: String,
     pub epk: RistrettoPoint,
@@ -14,7 +16,7 @@ pub struct Sender {
     channels: Vec<SenderChannel>,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SenderChannel {
     pub receiver_addr: String,
     pub vks: RistrettoPoint,
@@ -39,8 +41,7 @@ impl Sender {
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn get_channels(&self, receiver_addr: &str) -> Vec<&SenderChannel> {
+    pub fn get_channels(&self, receiver_addr: &str) -> Vec<&SenderChannel> {
         let mut channels = Vec::new();
 
         for channel in &self.channels {
@@ -167,6 +168,21 @@ impl Sender {
             Err(_) => Err(SenderError("Failed to decompress vks".to_string())),
         }
     }
+
+    // Serialize the Sender object to a byte array
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let result = serde_json::to_vec(self);
+        result.unwrap()
+    }
+
+    // Deserialize a Sender object from a byte array
+    pub fn from_slice(bytes: &[u8]) -> Result<Sender, SenderError> {
+        let result = serde_json::from_slice(bytes);
+        match result {
+            Ok(sender) => Ok(sender),
+            Err(err) => Err(SenderError(err.to_string())),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -201,5 +217,17 @@ mod tests {
         assert!(tag_opt.is_ok());
 
         let _tag = tag_opt.unwrap();
+    }
+
+    #[test]
+    fn serialization_test() {
+        let mut rng = OsRng;
+        let sender = Sender::new("Alice", &mut rng);
+        let bytes = sender.to_bytes();
+        let sender2 = Sender::from_slice(&bytes).unwrap();
+        assert_eq!(sender.handle, sender2.handle);
+        assert_eq!(sender.epk, sender2.epk);
+        assert_eq!(sender.esk, sender2.esk);
+        assert_eq!(sender.channels.len(), sender2.channels.len());
     }
 }
