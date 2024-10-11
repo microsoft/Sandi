@@ -128,7 +128,9 @@ impl SenderRecords {
             Some(sender) => {
                 let _sender_lock = SpinlockGuard::new(sender.lock.clone());
                 if sender.epk_epoch == epoch {
-                    return Err(SenderRecordError("EPK already exists for this epoch".to_string()));
+                    if sender.epk.is_some() && sender.epk.unwrap() != epk {
+                        return Err(SenderRecordError("EPK already exists for this epoch".to_string()));
+                    }
                 }
 
                 sender.epk_epoch = epoch;
