@@ -140,6 +140,21 @@ impl SenderRecords {
         }
     }
 
+    pub(crate) fn get_sender_epk(&self, sender_id: &SenderId, epoch: i64) -> Option<RistrettoPoint> {
+        // First find the sender
+        let sender_rec = self.records.get(sender_id);
+        match sender_rec
+        {
+            None => None,
+            Some(sender) => {
+                if sender.epk_epoch == epoch {
+                    return sender.epk.clone();
+                }
+                None
+            }
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) fn set_sender_epk_byhandle(&mut self, handle: &str, epoch: i64, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
         // First find the sender

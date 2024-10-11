@@ -141,6 +141,22 @@ impl AccountabilityServer {
         }
     }
 
+    pub fn get_sender_epk(&self, sender_handle: &str) -> Result<RistrettoPoint, AccSvrError> {
+        // Get current epoch
+        let epoch = get_epoch(self.time_provider.get_current_time(), self.params.epoch_duration.try_into().unwrap(), self.params.epoch_start);
+        let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
+        match sender_opt {
+            Some(sender) => {
+                let epk_opt = self.sender_records.get_sender_epk(&sender.id, epoch);
+                match epk_opt {
+                    Some(epk) => Ok(epk),
+                    None => Err(AccSvrError("Sender PK not found for current epoch".to_string())),
+                }
+            }
+            None => Err(AccSvrError("Sender not found".to_string())),
+        }
+    }
+
     fn compute_reputation(&self, sender: &SenderRecord) -> u8 {
         match self.params.compute_reputation {
             Some(f) => f(sender.score, self.params.maximum_score),
