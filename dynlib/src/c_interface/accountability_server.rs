@@ -1,4 +1,4 @@
-use std::{collections::HashMap, os::raw::c_char};
+use std::{collections::HashMap, os::raw::c_char, os::raw::c_double, convert::TryInto};
 
 use curve25519_dalek::ristretto::CompressedRistretto;
 use rand::{rngs::OsRng, RngCore};
@@ -173,6 +173,37 @@ pub extern "C" fn as_get_sender_epk(acc_server_id: u64, sender_handle: *const c_
                 },
                 Err(err) => {
                     set_last_error(format!("Sender not found: {}", err.0).as_str());
+                    return -1;
+                }
+            }
+        },
+        Err(err_msg) => {
+            set_last_error(&err_msg.0);
+            return -1;
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn as_get_sender_score(acc_server_id: u64, sender_handle: *const c_char, sender_score: *mut c_double) -> i32 {
+    if sender_handle.is_null() {
+        set_last_error("sender_handle is null");
+        return -1;
+    }
+
+    let sender_handle = unsafe { std::ffi::CStr::from_ptr(sender_handle).to_str().unwrap() };
+
+    let acc_server = get_acc_server_ref(acc_server_id);
+    match acc_server {
+        Ok(acc_server) => {
+            let score = acc_server.get_sender_score(sender_handle);
+            match score {
+                Ok(score) => {
+                    unsafe { *sender_score = score };
+                    return 0;
+                },
+                Err(err_msg) => {
+                    set_last_error(&err_msg.0);
                     return -1;
                 }
             }

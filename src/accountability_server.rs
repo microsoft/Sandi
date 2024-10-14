@@ -164,6 +164,14 @@ impl AccountabilityServer {
         }
     }
 
+    pub fn get_sender_score(&self, sender_handle: &str) -> Result<f64, AccSvrError> {
+        let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
+        match sender_opt {
+            Some(sender) => Ok(sender.score),
+            None => Err(AccSvrError("Sender not found".to_string())),
+        }
+    }
+
     pub fn issue_tag<R>(
         &mut self,
         commitment_hr: &[u8],
