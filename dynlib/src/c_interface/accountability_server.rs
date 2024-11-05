@@ -327,6 +327,22 @@ pub extern "C" fn as_report_tag(acc_server_id: u64, tag: *const u8, tag_len: u64
 }
 
 #[no_mangle]
+pub extern "C" fn as_update_scores(acc_server_id: u64) -> i32 {
+    let acc_server = get_acc_server_mut_ref(acc_server_id);
+    match acc_server {
+        Ok(acc_server) => {
+            let mut rng = OsRng;
+            acc_server.update_scores(&mut rng);
+            return 0;
+        },
+        Err(err_msg) => {
+            set_last_error(&err_msg.0);
+            return -1;
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn as_destroy_acc_server(acc_server_id: u64) {
     unsafe {
         match ACC_SERVER_INSTANCES {
