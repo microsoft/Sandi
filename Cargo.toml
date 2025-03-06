@@ -22,8 +22,12 @@ rand_distr = "0.4"
 flatbuffers = "24.3"
 lazy_static = "1.5"
 
+[features]
+mem_tests = []
+
 [dev-dependencies]
 criterion = "0.5"
+memory_stats = "1.2"
 
 [build-dependencies]
 flatc = "0.2"

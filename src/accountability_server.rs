@@ -450,6 +450,7 @@ mod tests {
     use curve25519_dalek::ristretto::CompressedRistretto;
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
+    use memory_stats::memory_stats;
 
     use super::*;
     use crate::{sender::Sender, sender_tag::SenderTag};
@@ -912,5 +913,68 @@ mod tests {
             params,
             &mut rng,
         );
+    }
+
+    #[test]
+    fn memory_test() {
+        let mut rng = OsRng;
+        let mut accsvr = AccountabilityServer::new(
+            AccServerParams {
+                maximum_score: 1000.0,
+                report_threshold: 10,
+                epoch_start: 1614556800, // March 1, 2021 00:00:00
+                epoch_duration: 24,
+                tag_duration: 2,
+                max_vks_per_epoch: 5,
+                compute_reputation: None,
+                noise_distribution: None,
+            },
+            &mut rng,
+        );
+
+        // Initialize senders
+        let mut senders: Vec<Sender> = Vec::new();
+        for i in 0..10 {
+            let sender_handle = format!("sender{}", i);
+            let sender = Sender::new(&sender_handle, &mut rng);
+            let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender_handle);
+            assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
+            senders.push(sender);
+        }
+
+        let mem_stats = memory_stats();
+
+        // Get tags
+        let mut tags: Vec<SenderTag> = Vec::new();
+        for idx in 0..1000 {
+            // Get a random sender
+            let sender_idx = idx as usize % 10;
+            let sender = &mut senders[sender_idx];
+            let channel;
+            let channels = sender.get_channels("receiver");
+            if channels.len() == 0 {
+                channel = sender.add_channel("receiver", &mut rng);
+            } else {
+                channel = channels[0].clone();
+            }
+
+            tags.push(
+                sender
+                    .get_tag(&channel, &mut accsvr, &mut rng)
+                    .unwrap(),
+            );
+        }
+
+        // Report tags
+        for tag in tags {
+            let result = accsvr.report(&tag.report_tag);
+            assert!(result.is_ok(), "{:?}", result.unwrap_err());
+        }
+
+        // Update scores
+        accsvr.update_scores(&mut rng);
+
+        // Check memory usage
+        memory_stats::print_memory_usage();
     }
 }
