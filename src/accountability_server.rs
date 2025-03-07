@@ -450,8 +450,6 @@ mod tests {
     use curve25519_dalek::ristretto::CompressedRistretto;
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
-    use memory_stats::memory_stats;
-    use serial_test::serial;
 
     use super::*;
     use crate::{sender::Sender, sender_tag::SenderTag, utils};
@@ -918,8 +916,10 @@ mod tests {
 
     #[cfg(feature = "mem-tests")]
     #[test]
-    #[serial]
+    #[serial_test::serial]
     fn memory_test() {
+        use memory_stats::memory_stats;
+
         let mut rng = OsRng;
         let mut accsvr = AccountabilityServer::new(
             AccServerParams {

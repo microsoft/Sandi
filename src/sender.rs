@@ -230,4 +230,34 @@ mod tests {
         assert_eq!(sender.esk, sender2.esk);
         assert_eq!(sender.channels.len(), sender2.channels.len());
     }
+
+    #[cfg(feature = "mem-tests")]
+    #[test]
+    #[serial_test::serial]
+    fn memory_test() {
+        use memory_stats::memory_stats;
+
+        let mut sender = Sender::new("Alice", &mut OsRng);
+
+        let mem_stats = memory_stats().unwrap();
+        let mut phys_mem_previous = mem_stats.physical_mem;
+        let mut virt_mem_previous = mem_stats.virtual_mem;
+
+        for j in 0..20 {
+            // 1M channels
+            for i in 0..1_000_000 {
+                let channel_name = format!("Bob{}", i + j * 1_000_000);
+                let _ = sender.add_channel(&channel_name, &mut OsRng);
+            }
+
+            let mem_stats = memory_stats().unwrap();
+            let phys_mem_current = mem_stats.physical_mem;
+            let virt_mem_current = mem_stats.virtual_mem;
+            println!("Memory usage (phys) adding 1M, iteration {}: {} MB", j, (phys_mem_current - phys_mem_previous) / 1024 / 1024);
+            println!("Memory usage (virt) adding 1M, iteration {}: {} MB", j, (virt_mem_current - virt_mem_previous) / 1024 / 1024);
+
+            phys_mem_previous = phys_mem_current;
+            virt_mem_previous = virt_mem_current;
+        }
+    }
 }
