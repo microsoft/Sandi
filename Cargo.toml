@@ -23,11 +23,12 @@ flatbuffers = "24.3"
 lazy_static = "1.5"
 
 [features]
-mem_tests = []
+mem-tests = []
 
 [dev-dependencies]
 criterion = "0.5"
-memory_stats = "1.2"
+memory-stats = "1.2"
+serial_test = "3.2"
 
 [build-dependencies]
 flatc = "0.2"

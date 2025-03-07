@@ -451,9 +451,10 @@ mod tests {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
     use memory_stats::memory_stats;
+    use serial_test::serial;
 
     use super::*;
-    use crate::{sender::Sender, sender_tag::SenderTag};
+    use crate::{sender::Sender, sender_tag::SenderTag, utils};
 
     static mut MOCK_TIME: i64 = 0;
 
@@ -915,7 +916,9 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "mem-tests")]
     #[test]
+    #[serial]
     fn memory_test() {
         let mut rng = OsRng;
         let mut accsvr = AccountabilityServer::new(
@@ -932,49 +935,29 @@ mod tests {
             &mut rng,
         );
 
-        // Initialize senders
-        let mut senders: Vec<Sender> = Vec::new();
-        for i in 0..10 {
-            let sender_handle = format!("sender{}", i);
-            let sender = Sender::new(&sender_handle, &mut rng);
-            let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender_handle);
-            assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
-            senders.push(sender);
-        }
+        let mem_stats = memory_stats().unwrap();
+        let mut previous_phys_mem = mem_stats.physical_mem;
+        let mut previous_virt_mem = mem_stats.virtual_mem;
 
-        let mem_stats = memory_stats();
+        for j in 0..20 {
+            // Add 1 million senders
+            for i in 0..1000000 {
+                // We only need sender handle and a random RistrettoPoint
+                let sender_handle = format!("sender{}", i + j * 1000000);
+                let sender_epk = utils::random_point(&mut rng);
 
-        // Get tags
-        let mut tags: Vec<SenderTag> = Vec::new();
-        for idx in 0..1000 {
-            // Get a random sender
-            let sender_idx = idx as usize % 10;
-            let sender = &mut senders[sender_idx];
-            let channel;
-            let channels = sender.get_channels("receiver");
-            if channels.len() == 0 {
-                channel = sender.add_channel("receiver", &mut rng);
-            } else {
-                channel = channels[0].clone();
+                let set_pk_result = accsvr.set_sender_epk(&sender_epk, &sender_handle);
+                assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
             }
 
-            tags.push(
-                sender
-                    .get_tag(&channel, &mut accsvr, &mut rng)
-                    .unwrap(),
-            );
+            let mem_stats = memory_stats().unwrap();
+            let current_phys_mem = mem_stats.physical_mem;
+            let current_virt_mem = mem_stats.virtual_mem;
+            println!("Memory usage (phys) adding 1M, iteration {}: {} MB", j, (current_phys_mem - previous_phys_mem) / 1024 / 1024);
+            println!("Memory usage (virt) adding 1M, iteration {}: {} MB", j, (current_virt_mem - previous_virt_mem) / 1024 / 1024);
+
+            previous_phys_mem = current_phys_mem;
+            previous_virt_mem = current_virt_mem;
         }
-
-        // Report tags
-        for tag in tags {
-            let result = accsvr.report(&tag.report_tag);
-            assert!(result.is_ok(), "{:?}", result.unwrap_err());
-        }
-
-        // Update scores
-        accsvr.update_scores(&mut rng);
-
-        // Check memory usage
-        memory_stats::print_memory_usage();
     }
 }
