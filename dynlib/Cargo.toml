@@ -1,5 +1,5 @@
 [package]
-name = "acctblty_int"
+name = "sandi_int"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-acctblty = { path = ".." }
+sandi = { path = ".." }
 sha2 = { version = "0.10" }
 hmac = "0.12"
 rand = { version = "0.8" }

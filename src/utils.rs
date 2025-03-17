@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 #![allow(deprecated)]
 use std::array::TryFromSliceError;
 
@@ -46,8 +49,7 @@ where
     RistrettoPoint::hash_from_bytes::<sha2::Sha512>(&bytes)
 }
 
-pub fn encrypt(key: &[u8], message: &mut [u8])
-{
+pub fn encrypt(key: &[u8], message: &mut [u8]) {
     if key.len() != Aes256::key_size() {
         panic!("Key size is not {} bytes", Aes256::key_size());
     }
@@ -91,7 +93,7 @@ pub fn decrypt(key: &[u8], ciphertext: &mut [u8]) {
         );
     }
 
-    let iv = [ 0u8; 16 ];
+    let iv = [0u8; 16];
     let mut cipher = Aes256CbcDec::new_from_slices(key, &iv).unwrap();
 
     for block in ciphertext.chunks_mut(Aes256::block_size()) {

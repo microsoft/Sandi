@@ -1,7 +1,12 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use crate::{
-    nizqdleq, sender_tag::SenderTag, utils::{
+    nizqdleq,
+    sender_tag::SenderTag,
+    utils::{
         basepoint_order, verify_signature, verifying_key_from_slice, SignatureVerificationError,
-    }
+    },
 };
 use chrono::Utc;
 use hmac::{Hmac, Mac};
@@ -102,16 +107,10 @@ mod tests {
 
         let channel = sender.add_channel(receiver_addr, &mut rng);
 
-        let tag = sender
-            .get_tag(&channel, &mut accsvr, &mut rng)
-            .unwrap();
+        let tag = sender.get_tag(&channel, &mut accsvr, &mut rng).unwrap();
 
         // Tag should be valid
-        let verif_result = verify(
-            receiver_addr,
-            &tag,
-            &accsvr.get_verifying_key(),
-        );
+        let verif_result = verify(receiver_addr, &tag, &accsvr.get_verifying_key());
         assert!(verif_result.is_ok(), "{}", verif_result.unwrap_err().0);
     }
 }

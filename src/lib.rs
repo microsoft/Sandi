@@ -1,10 +1,15 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use sender_tag::SenderTag;
 use tag_verifier::VerificationError;
 
 pub mod accountability_server;
 pub mod batch_ndleq;
 pub mod epochs;
+pub mod gaussian;
 pub mod nizqdleq;
+pub mod receiver;
 pub mod sender;
 pub mod sender_records;
 pub mod sender_tag;
@@ -12,31 +17,19 @@ pub mod serialization;
 pub mod tag;
 pub mod tag_verifier;
 pub mod utils;
-pub mod gaussian;
-pub mod receiver;
 
 // private modules
-mod time_provider;
 mod spin_lock;
+mod time_provider;
 
-pub fn verify_tag(
-    receiver_addr: &str,
-    verifying_key: &[u8],
-    tag: &[u8],
-) -> Result<u8, String> {
+pub fn verify_tag(receiver_addr: &str, verifying_key: &[u8], tag: &[u8]) -> Result<u8, String> {
     let full_tag = SenderTag::from_slice(tag)?;
 
-    let verif_result = tag_verifier::verify(
-        receiver_addr,
-        &full_tag,
-        verifying_key,
-    );
+    let verif_result = tag_verifier::verify(receiver_addr, &full_tag, verifying_key);
 
     match verif_result {
         Ok(reputation) => return Ok(reputation),
-        Err(VerificationError(err_msg)) => {
-            return Err(format!("Verification failed: {}", err_msg))
-        }
+        Err(VerificationError(err_msg)) => return Err(format!("Verification failed: {}", err_msg)),
     }
 }
 
@@ -74,17 +67,11 @@ mod tests {
         let receiver_addr = "receiver";
         let channel = sender.add_channel(receiver_addr, &mut rng);
 
-        let tag = sender
-            .get_tag(&channel, &mut accsvr, &mut rng)
-            .unwrap();
+        let tag = sender.get_tag(&channel, &mut accsvr, &mut rng).unwrap();
 
         // Verify tag
         let vk = accsvr.get_verifying_key();
-        let verif_result = tag_verifier::verify(
-            &receiver_addr,
-            &tag,
-            &vk,
-        );
+        let verif_result = tag_verifier::verify(&receiver_addr, &tag, &vk);
         assert!(verif_result.is_ok());
 
         // Sender should have no reports

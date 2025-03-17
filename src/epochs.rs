@@ -1,13 +1,14 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
 
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 pub fn get_start_of_day(timestamp: i64) -> i64 {
     // Get UTC DateTimne frin timestamp
-    let dt = DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap(), Utc);
+    let dt = DateTime::<Utc>::from_timestamp(timestamp, 0).unwrap();
 
     // Get start of day
-    let date_part = dt.naive_utc();
-    let start_of_day = date_part.date().and_hms_opt(0, 0, 0).unwrap().and_utc();
+    let start_of_day = dt.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
     start_of_day.timestamp()
 }
 
@@ -32,12 +33,19 @@ pub fn get_lock_timestamp(time_stamp: i64, lock_duration: i64, epoch_duration: i
     lock_timestamp
 }
 
-pub fn get_timestamp_for_date_and_time(year: i32, month: u32, day: u32, hour: u32, minute: u32, second: u32) -> i64 {
+pub fn get_timestamp_for_date_and_time(
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    second: u32,
+) -> i64 {
     let dt = NaiveDateTime::new(
         chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap(),
         chrono::NaiveTime::from_hms_opt(hour, minute, second).unwrap(),
     );
-    dt.timestamp()
+    dt.and_utc().timestamp()
 }
 
 pub fn get_timestamp_for_date(year: i32, month: u32, day: u32) -> i64 {
@@ -46,13 +54,13 @@ pub fn get_timestamp_for_date(year: i32, month: u32, day: u32) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Datelike, Timelike};
     use super::*;
+    use chrono::{Datelike, Timelike};
 
     fn get_date_from_timestamp(timestamp: i64) -> DateTime<Utc> {
-        DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap(), Utc)
+        DateTime::<Utc>::from_timestamp(timestamp, 0).unwrap()
     }
-    
+
     #[test]
     fn test_get_start_of_day() {
         let timestamp = 1614616260; // 2021-03-01 16:31:00 UTC

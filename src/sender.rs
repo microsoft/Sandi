@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint, Scalar};
 use hmac::{Hmac, Mac};
 use rand::{CryptoRng, RngCore};
@@ -5,7 +8,11 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 use crate::{
-    accountability_server::{AccSvrError, AccountabilityServer}, nizqdleq, sender_tag::{ReportTag, SenderTag}, tag::Tag, utils::{basepoint_order, G}
+    accountability_server::{AccSvrError, AccountabilityServer},
+    nizqdleq,
+    sender_tag::{ReportTag, SenderTag},
+    tag::Tag,
+    utils::{basepoint_order, G},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -112,20 +119,37 @@ impl Sender {
         mac.update(channel.vks.compress().as_bytes());
         let commitment_vks = mac.finalize();
 
-        let tag_res =
-            accountability_server.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &self.handle, rng);
+        let tag_res = accountability_server.issue_tag(
+            &commitment_hr.into_bytes().to_vec(),
+            &commitment_vks.into_bytes().to_vec(),
+            &self.handle,
+            rng,
+        );
 
         let vks_bytes = channel.vks.compress().to_bytes();
         match tag_res {
             Ok(tag) => {
-                return self.get_tag_from_as_tag(tag, randomness_hr, randomness_vks, &vks_bytes, rng);
+                return self.get_tag_from_as_tag(
+                    tag,
+                    randomness_hr,
+                    randomness_vks,
+                    &vks_bytes,
+                    rng,
+                );
             }
             Err(AccSvrError(err_msg)) => Err(SenderError(err_msg)),
         }
     }
 
-    pub fn get_tag_from_as_tag<R>(&self, tag: Tag, randomness_hr: [u8; 32], randomness_vks: [u8; 32], vks: &[u8], rng: &mut R) -> Result<SenderTag, SenderError>
-    where 
+    pub fn get_tag_from_as_tag<R>(
+        &self,
+        tag: Tag,
+        randomness_hr: [u8; 32],
+        randomness_vks: [u8; 32],
+        vks: &[u8],
+        rng: &mut R,
+    ) -> Result<SenderTag, SenderError>
+    where
         R: RngCore + CryptoRng,
     {
         let new_x = self.esk * tag.g_prime;
@@ -154,14 +178,12 @@ impl Sender {
             Ok(vks) => {
                 let vsk_decompressed = vks.decompress();
                 match vsk_decompressed {
-                    Some(vks) => {
-                        Ok(SenderTag {
-                            report_tag,
-                            randomness_hr,
-                            randomness_vks,
-                            vks
-                        })
-                    },
+                    Some(vks) => Ok(SenderTag {
+                        report_tag,
+                        randomness_hr,
+                        randomness_vks,
+                        vks,
+                    }),
                     None => Err(SenderError("Failed to decompress vks".to_string())),
                 }
             }
@@ -253,8 +275,16 @@ mod tests {
             let mem_stats = memory_stats().unwrap();
             let phys_mem_current = mem_stats.physical_mem;
             let virt_mem_current = mem_stats.virtual_mem;
-            println!("Memory usage (phys) adding 1M, iteration {}: {} MB", j, (phys_mem_current - phys_mem_previous) / 1024 / 1024);
-            println!("Memory usage (virt) adding 1M, iteration {}: {} MB", j, (virt_mem_current - virt_mem_previous) / 1024 / 1024);
+            println!(
+                "Memory usage (phys) adding 1M, iteration {}: {} MB",
+                j,
+                (phys_mem_current - phys_mem_previous) / 1024 / 1024
+            );
+            println!(
+                "Memory usage (virt) adding 1M, iteration {}: {} MB",
+                j,
+                (virt_mem_current - virt_mem_previous) / 1024 / 1024
+            );
 
             phys_mem_previous = phys_mem_current;
             virt_mem_previous = virt_mem_current;

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint, Scalar};
 use flatbuffers::FlatBufferBuilder;
 use serde::{Deserialize, Serialize};
@@ -25,9 +28,31 @@ pub struct SenderTag {
 impl SenderTag {
     pub fn to_vec(&self) -> Vec<u8> {
         let mut builder = FlatBufferBuilder::new();
-        let commitment_hr = &FixedBuffer32(self.report_tag.tag.commitment_hr.clone().try_into().unwrap());
-        let commitment_vks = &FixedBuffer32(self.report_tag.tag.commitment_vks.clone().try_into().unwrap());
-        let enc_sender_id = &FixedBuffer48(self.report_tag.tag.enc_sender_id.0.clone().try_into().unwrap());
+        let commitment_hr = &FixedBuffer32(
+            self.report_tag
+                .tag
+                .commitment_hr
+                .clone()
+                .try_into()
+                .unwrap(),
+        );
+        let commitment_vks = &FixedBuffer32(
+            self.report_tag
+                .tag
+                .commitment_vks
+                .clone()
+                .try_into()
+                .unwrap(),
+        );
+        let enc_sender_id = &FixedBuffer48(
+            self.report_tag
+                .tag
+                .enc_sender_id
+                .0
+                .clone()
+                .try_into()
+                .unwrap(),
+        );
         let signature = &FixedBuffer64(self.report_tag.tag.signature.0.clone().try_into().unwrap());
         let q_big = &FixedBuffer32(self.report_tag.tag.q_big.compress().to_bytes());
         let g_prime = &FixedBuffer32(self.report_tag.tag.g_prime.compress().to_bytes());
@@ -175,11 +200,26 @@ mod tests {
         assert_eq!(deserialized_tag.report_tag.tag.commitment_vks, [0; 32]);
         assert_eq!(deserialized_tag.report_tag.tag.exp_timestamp, 0);
         assert_eq!(deserialized_tag.report_tag.tag.score, 0);
-        assert_eq!(deserialized_tag.report_tag.tag.enc_sender_id, EncSenderId([0; 48]));
-        assert_eq!(deserialized_tag.report_tag.tag.q_big, full_tag.report_tag.tag.q_big);
-        assert_eq!(deserialized_tag.report_tag.tag.g_prime, full_tag.report_tag.tag.g_prime);
-        assert_eq!(deserialized_tag.report_tag.tag.x_big, full_tag.report_tag.tag.x_big);
-        assert_eq!(deserialized_tag.report_tag.tag.signature, TagSignature([0; 64]));
+        assert_eq!(
+            deserialized_tag.report_tag.tag.enc_sender_id,
+            EncSenderId([0; 48])
+        );
+        assert_eq!(
+            deserialized_tag.report_tag.tag.q_big,
+            full_tag.report_tag.tag.q_big
+        );
+        assert_eq!(
+            deserialized_tag.report_tag.tag.g_prime,
+            full_tag.report_tag.tag.g_prime
+        );
+        assert_eq!(
+            deserialized_tag.report_tag.tag.x_big,
+            full_tag.report_tag.tag.x_big
+        );
+        assert_eq!(
+            deserialized_tag.report_tag.tag.signature,
+            TagSignature([0; 64])
+        );
         assert_eq!(deserialized_tag.randomness_hr, [0; 32]);
         assert_eq!(deserialized_tag.randomness_vks, [0; 32]);
         assert_eq!(deserialized_tag.vks, full_tag.vks);

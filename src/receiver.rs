@@ -1,8 +1,11 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use std::collections::HashMap;
 
 use crate::accountability_server::AccountabilityServer;
+use crate::time_provider::{DefaultTimeProvider, TimeProvider};
 use crate::{epochs, sender_tag::SenderTag};
-use crate::time_provider::{TimeProvider, DefaultTimeProvider};
 
 #[derive(Clone)]
 pub struct ReceiverParams {
@@ -14,7 +17,7 @@ pub struct ReceiverParams {
 }
 
 pub struct Receiver {
-    pub reports: HashMap<[u8;32], Vec<SenderTag>>,
+    pub reports: HashMap<[u8; 32], Vec<SenderTag>>,
 
     // Timestamp until which the receiver is locked for reporting
     report_lock: i64,
@@ -36,7 +39,11 @@ impl Receiver {
         }
     }
 
-    pub(crate) fn new_with_time_provider(receiver_params: &ReceiverParams, time_provider: Box<dyn TimeProvider>) -> Self {
+    #[allow(dead_code)]
+    pub(crate) fn new_with_time_provider(
+        receiver_params: &ReceiverParams,
+        time_provider: Box<dyn TimeProvider>,
+    ) -> Self {
         Receiver {
             reports: HashMap::new(),
             report_lock: 0,
@@ -73,30 +80,42 @@ impl Receiver {
     fn set_report_lock(&mut self) {
         let now = self.time_provider.get_current_time();
         // Set the lock period
-        self.report_lock = epochs::get_lock_timestamp(now, self.receiver_params.report_lock_period, self.receiver_params.epoch_duration);
+        self.report_lock = epochs::get_lock_timestamp(
+            now,
+            self.receiver_params.report_lock_period,
+            self.receiver_params.epoch_duration,
+        );
     }
 
-    pub fn report(&mut self, tag: &[u8], acc_server: &mut AccountabilityServer) -> Result<(), String> {
+    pub fn report(
+        &mut self,
+        tag: &[u8],
+        acc_server: &mut AccountabilityServer,
+    ) -> Result<(), String> {
         let (full_tag, vks) = self.can_report_tag(tag)?;
         let report_tag = full_tag.report_tag.clone();
-        self.reports.entry(vks).and_modify(|reps| reps.push(full_tag));
+        self.reports
+            .entry(vks)
+            .and_modify(|reps| reps.push(full_tag));
 
         let report_result = acc_server.report(&report_tag);
         match report_result {
             Ok(_) => {
                 self.set_report_lock();
                 Ok(())
-            },
+            }
             Err(e) => Err(e.0),
         }
     }
-
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        accountability_server::{AccServerParams, AccountabilityServer},
+        sender::Sender,
+    };
     use rand::rngs::OsRng;
-    use crate::{accountability_server::{AccServerParams, AccountabilityServer}, sender::Sender};
 
     use super::*;
 
@@ -128,7 +147,9 @@ mod tests {
                 max_vks_per_epoch: 5,
                 compute_reputation: None,
                 noise_distribution: None,
-            }, &mut rng, Box::new(MockTimeProvider {})
+            },
+            &mut rng,
+            Box::new(MockTimeProvider {}),
         );
 
         let mut sender = Sender::new("sender", &mut rng);
@@ -184,7 +205,7 @@ mod tests {
         // Get a new tag
         sender.generate_new_epoch_keys(&mut rng);
         acc_server.set_sender_epk(&sender.epk, "sender").unwrap();
-        
+
         let tag = sender.get_tag(&channel, &mut acc_server, &mut rng).unwrap();
         let serialized_tag = tag.to_vec();
 

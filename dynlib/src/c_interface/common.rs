@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use std::os::raw::c_char;
 
 thread_local! {
@@ -12,9 +15,7 @@ pub extern "C" fn get_last_error(error: *mut c_char, error_len: u64) -> i32 {
             return 0;
         }
 
-        let last_error = LAST_ERROR.with(|le| {
-            le.borrow().as_ref().unwrap().clone()
-        });
+        let last_error = LAST_ERROR.with(|le| le.borrow().as_ref().unwrap().clone());
 
         if error.is_null() {
             return last_error.len() as i32;

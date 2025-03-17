@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use crate::{nizqdleq, utils::basepoint_order};
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand::{RngCore, SeedableRng};

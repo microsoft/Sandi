@@ -1,9 +1,12 @@
-use std::{collections::HashMap, ffi::CStr, os::raw::c_char};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use rand::{rngs::OsRng, RngCore};
-use acctblty::{sender::Sender, sender_tag::SenderTag, tag::Tag};
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use super::common::set_last_error;
+use sandi::{sender::Sender, sender_tag::SenderTag, tag::Tag};
+use hmac::{Hmac, Mac};
+use rand::{rngs::OsRng, RngCore};
+use sha2::Sha256;
+use std::{collections::HashMap, ffi::CStr, os::raw::c_char};
 
 static mut SENDER_INSTANCES: Option<HashMap<u64, Sender>> = None;
 
@@ -12,13 +15,15 @@ struct SenderInstError(pub String);
 fn get_sender_mut_ref(sender_id: u64) -> Result<&'static mut Sender, SenderInstError> {
     unsafe {
         if SENDER_INSTANCES.is_none() {
-            return Err(SenderInstError("SENDER_INSTANCES is not initialized".to_string()));
+            return Err(SenderInstError(
+                "SENDER_INSTANCES is not initialized".to_string(),
+            ));
         }
 
         let senders = SENDER_INSTANCES.as_mut().unwrap();
         match senders.get_mut(&sender_id) {
             Some(sender) => Ok(sender),
-            None => Err(SenderInstError("Sender not found".to_string()))
+            None => Err(SenderInstError("Sender not found".to_string())),
         }
     }
 }
@@ -32,7 +37,7 @@ fn get_sender_ref(server_id: u64) -> Result<&'static Sender, SenderInstError> {
         let senders = SENDER_INSTANCES.as_mut().unwrap();
         match senders.get(&server_id) {
             Some(sender) => Ok(sender),
-            None => Err(SenderInstError("Server not found".to_string()))
+            None => Err(SenderInstError("Server not found".to_string())),
         }
     }
 }
@@ -75,7 +80,14 @@ pub extern "C" fn sender_init_sender(handle: *const c_char, sender_id: *mut u64)
 }
 
 #[no_mangle]
-pub extern "C" fn sender_add_channel(sender_id: u64, receiver_addr: *const c_char, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
+pub extern "C" fn sender_add_channel(
+    sender_id: u64,
+    receiver_addr: *const c_char,
+    vks: *mut u8,
+    vks_len: u64,
+    sks: *mut u8,
+    sks_len: u64,
+) -> i32 {
     unsafe {
         if receiver_addr.is_null() {
             set_last_error("receiver_addr is null");
@@ -150,7 +162,15 @@ pub extern "C" fn sender_get_channel_count(sender_id: u64, receiver_handle: *con
 }
 
 #[no_mangle]
-pub extern "C" fn sender_get_channel(sender_id: u64, receiver_handle: *const c_char, channel_idx: u64, vks: *mut u8, vks_len: u64, sks: *mut u8, sks_len: u64) -> i32 {
+pub extern "C" fn sender_get_channel(
+    sender_id: u64,
+    receiver_handle: *const c_char,
+    channel_idx: u64,
+    vks: *mut u8,
+    vks_len: u64,
+    sks: *mut u8,
+    sks_len: u64,
+) -> i32 {
     unsafe {
         if receiver_handle.is_null() {
             set_last_error("receiver_handle is null");
@@ -252,7 +272,19 @@ pub extern "C" fn sender_get_public_epoch_key(sender_id: u64, epk: *mut u8, epk_
 }
 
 #[no_mangle]
-pub extern "C" fn sender_get_commitments(receiver_addr: *const c_char, vks: *const u8, vks_len: u64, commitment_hr: *mut u8, commitment_hr_len: u64, commitment_vks: *mut u8, commitment_vks_len: u64, randomness_hr: *mut u8, randomness_hr_len: u64, randomness_vks: *mut u8, randomness_vks_len: u64) -> i32 {
+pub extern "C" fn sender_get_commitments(
+    receiver_addr: *const c_char,
+    vks: *const u8,
+    vks_len: u64,
+    commitment_hr: *mut u8,
+    commitment_hr_len: u64,
+    commitment_vks: *mut u8,
+    commitment_vks_len: u64,
+    randomness_hr: *mut u8,
+    randomness_hr_len: u64,
+    randomness_vks: *mut u8,
+    randomness_vks_len: u64,
+) -> i32 {
     unsafe {
         if receiver_addr.is_null() {
             set_last_error("receiver_addr is null");
@@ -306,10 +338,14 @@ pub extern "C" fn sender_get_commitments(receiver_addr: *const c_char, vks: *con
 
         let receiver_addr = CStr::from_ptr(receiver_addr).to_str().unwrap();
         let vks_slice = std::slice::from_raw_parts(vks, vks_len.try_into().unwrap());
-        let commitment_hr_slice = std::slice::from_raw_parts_mut(commitment_hr, commitment_hr_len.try_into().unwrap());
-        let commitment_vks_slice = std::slice::from_raw_parts_mut(commitment_vks, commitment_vks_len.try_into().unwrap());
-        let randomness_hr_slice = std::slice::from_raw_parts_mut(randomness_hr, randomness_hr_len.try_into().unwrap());
-        let randomness_vks_slice = std::slice::from_raw_parts_mut(randomness_vks, randomness_vks_len.try_into().unwrap());
+        let commitment_hr_slice =
+            std::slice::from_raw_parts_mut(commitment_hr, commitment_hr_len.try_into().unwrap());
+        let commitment_vks_slice =
+            std::slice::from_raw_parts_mut(commitment_vks, commitment_vks_len.try_into().unwrap());
+        let randomness_hr_slice =
+            std::slice::from_raw_parts_mut(randomness_hr, randomness_hr_len.try_into().unwrap());
+        let randomness_vks_slice =
+            std::slice::from_raw_parts_mut(randomness_vks, randomness_vks_len.try_into().unwrap());
 
         let mut rnd_hr = [0u8; 32];
         let mut rnd_vks = [0u8; 32];
@@ -336,7 +372,19 @@ pub extern "C" fn sender_get_commitments(receiver_addr: *const c_char, vks: *con
 }
 
 #[no_mangle]
-pub extern "C" fn sender_issue_tag(sender_id: u64, as_tag: *const u8, as_tag_len: u64, randomness_hr: *const u8, randomness_hr_len: u64, randomness_vks: *const u8, randomness_vks_len: u64, vks: *const u8, vks_len: u64, sender_tag: *mut u8, sender_tag_len: u64) -> i32 {
+pub extern "C" fn sender_issue_tag(
+    sender_id: u64,
+    as_tag: *const u8,
+    as_tag_len: u64,
+    randomness_hr: *const u8,
+    randomness_hr_len: u64,
+    randomness_vks: *const u8,
+    randomness_vks_len: u64,
+    vks: *const u8,
+    vks_len: u64,
+    sender_tag: *mut u8,
+    sender_tag_len: u64,
+) -> i32 {
     unsafe {
         if as_tag.is_null() {
             set_last_error("as_tag is null");
@@ -389,10 +437,13 @@ pub extern "C" fn sender_issue_tag(sender_id: u64, as_tag: *const u8, as_tag_len
         }
 
         let as_tag_slice = std::slice::from_raw_parts(as_tag, as_tag_len.try_into().unwrap());
-        let randomness_hr_slice = std::slice::from_raw_parts(randomness_hr, randomness_hr_len.try_into().unwrap());
-        let randomness_vks_slice = std::slice::from_raw_parts(randomness_vks, randomness_vks_len.try_into().unwrap());
+        let randomness_hr_slice =
+            std::slice::from_raw_parts(randomness_hr, randomness_hr_len.try_into().unwrap());
+        let randomness_vks_slice =
+            std::slice::from_raw_parts(randomness_vks, randomness_vks_len.try_into().unwrap());
         let vks_slice = std::slice::from_raw_parts(vks, vks_len.try_into().unwrap());
-        let sender_tag_slice = std::slice::from_raw_parts_mut(sender_tag, sender_tag_len.try_into().unwrap());
+        let sender_tag_slice =
+            std::slice::from_raw_parts_mut(sender_tag, sender_tag_len.try_into().unwrap());
 
         let tag_result = Tag::from_slice(as_tag_slice);
         let mut rng = OsRng;
@@ -412,20 +463,25 @@ pub extern "C" fn sender_issue_tag(sender_id: u64, as_tag: *const u8, as_tag_len
                     randomness_hr_slice.try_into().unwrap(),
                     randomness_vks_slice.try_into().unwrap(),
                     vks_slice,
-                    &mut rng);
+                    &mut rng,
+                );
                 match result {
                     Ok(sender_tag) => {
                         let sender_tag_buff = sender_tag.to_vec();
                         let test = SenderTag::from_slice(sender_tag_buff.as_slice());
                         assert!(test.is_ok());
                         if sender_tag_buff.len() as u64 > sender_tag_len {
-                            set_last_error(&format!("sender_tag_len is too small: {}, required: {}", sender_tag_len, sender_tag_buff.len()));
+                            set_last_error(&format!(
+                                "sender_tag_len is too small: {}, required: {}",
+                                sender_tag_len,
+                                sender_tag_buff.len()
+                            ));
                             return -1;
                         }
 
                         sender_tag_slice.copy_from_slice(sender_tag_buff.as_slice());
                         return 0;
-                    },
+                    }
                     Err(e) => {
                         set_last_error(&format!("Error issuing tag: {}", e.0));
                         return -1;
@@ -470,7 +526,11 @@ pub extern "C" fn sender_serialize(sender_id: u64, buffer: *mut u8, buffer_len: 
 }
 
 #[no_mangle]
-pub extern "C" fn sender_deserialize(sender_bytes: *const u8, sender_bytes_len: u64, sender_id: *mut u64) -> i32 {
+pub extern "C" fn sender_deserialize(
+    sender_bytes: *const u8,
+    sender_bytes_len: u64,
+    sender_id: *mut u64,
+) -> i32 {
     unsafe {
         if sender_bytes.is_null() {
             set_last_error("sender_bytes is null");
@@ -487,7 +547,8 @@ pub extern "C" fn sender_deserialize(sender_bytes: *const u8, sender_bytes_len: 
             return -1;
         }
 
-        let sender_bytes_slice = std::slice::from_raw_parts(sender_bytes, sender_bytes_len.try_into().unwrap());
+        let sender_bytes_slice =
+            std::slice::from_raw_parts(sender_bytes, sender_bytes_len.try_into().unwrap());
         let sender_result = Sender::from_slice(sender_bytes_slice);
         match sender_result {
             Ok(sender) => {
@@ -495,7 +556,7 @@ pub extern "C" fn sender_deserialize(sender_bytes: *const u8, sender_bytes_len: 
                 add_sender_instance(sdr_id, sender);
                 *sender_id = sdr_id;
                 return 0;
-            },
+            }
             Err(e) => {
                 set_last_error(&format!("Error deserializing sender: {}", e.0));
                 return -1;
@@ -510,7 +571,7 @@ pub extern "C" fn sender_destroy_sender(sender_id: u64) {
         match SENDER_INSTANCES {
             Some(ref mut senders) => {
                 senders.remove(&sender_id);
-            },
+            }
             None => {
                 // Nothing to destroy
             }

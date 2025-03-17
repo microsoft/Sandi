@@ -1,6 +1,12 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{spin_lock::{Spinlock, SpinlockGuard}, tag::Tag};
+use crate::{
+    spin_lock::{Spinlock, SpinlockGuard},
+    tag::Tag,
+};
 use curve25519_dalek::RistrettoPoint;
 use rand::{CryptoRng, RngCore};
 
@@ -29,7 +35,7 @@ pub(crate) struct SenderRecords {
     pub ids: HashMap<String, SenderId>,
 }
 
-pub (crate) struct SenderRecordError(pub String);
+pub(crate) struct SenderRecordError(pub String);
 
 impl SenderRecord {
     pub fn new<R>(handle: &str, num_epochs: usize, initial_score: f64, rng: &mut R) -> SenderRecord
@@ -68,7 +74,9 @@ impl SenderRecord {
 
         let vks_keys_opt = self.vks_keys.get_mut(&epoch);
         match vks_keys_opt {
-            None => { panic!("Epoch not found"); }
+            None => {
+                panic!("Epoch not found");
+            }
             Some(vks_keys) => {
                 let mut vks_arr: [u8; 32] = [0; 32];
                 vks_arr.copy_from_slice(vks_key);
@@ -119,17 +127,23 @@ impl SenderRecords {
             .or_insert(sender_record);
     }
 
-    pub(crate) fn set_sender_epk(&mut self, sender_id: &SenderId, epoch: i64, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
+    pub(crate) fn set_sender_epk(
+        &mut self,
+        sender_id: &SenderId,
+        epoch: i64,
+        epk: RistrettoPoint,
+    ) -> Result<(), SenderRecordError> {
         // First find the sender
         let sender_rec = self.records.get_mut(sender_id);
-        match sender_rec
-        {
+        match sender_rec {
             None => return Err(SenderRecordError("Sender not found".to_string())),
             Some(sender) => {
                 let _sender_lock = SpinlockGuard::new(sender.lock.clone());
                 if sender.epk_epoch == epoch {
                     if sender.epk.is_some() && sender.epk.unwrap() != epk {
-                        return Err(SenderRecordError("EPK already exists for this epoch".to_string()));
+                        return Err(SenderRecordError(
+                            "EPK already exists for this epoch".to_string(),
+                        ));
                     }
                 }
 
@@ -140,11 +154,14 @@ impl SenderRecords {
         }
     }
 
-    pub(crate) fn get_sender_epk(&self, sender_id: &SenderId, epoch: i64) -> Option<RistrettoPoint> {
+    pub(crate) fn get_sender_epk(
+        &self,
+        sender_id: &SenderId,
+        epoch: i64,
+    ) -> Option<RistrettoPoint> {
         // First find the sender
         let sender_rec = self.records.get(sender_id);
-        match sender_rec
-        {
+        match sender_rec {
             None => None,
             Some(sender) => {
                 if sender.epk_epoch == epoch {
@@ -156,22 +173,31 @@ impl SenderRecords {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn set_sender_epk_byhandle(&mut self, handle: &str, epoch: i64, epk: RistrettoPoint) -> Result<(), SenderRecordError> {
+    pub(crate) fn set_sender_epk_byhandle(
+        &mut self,
+        handle: &str,
+        epoch: i64,
+        epk: RistrettoPoint,
+    ) -> Result<(), SenderRecordError> {
         // First find the sender
         let sender_id = self.ids.get(handle).cloned();
         if let Some(id) = sender_id {
             self.set_sender_epk(&id, epoch, epk)
         } else {
-            return Err(SenderRecordError("Sender not found".to_string()))
+            return Err(SenderRecordError("Sender not found".to_string()));
         }
     }
 
     #[allow(dead_code)]
-    pub(crate) fn add_vks_key(&mut self, sender_id: &SenderId, epoch: i64, vks_key: [u8;32]) -> Result<(), SenderRecordError> {
+    pub(crate) fn add_vks_key(
+        &mut self,
+        sender_id: &SenderId,
+        epoch: i64,
+        vks_key: [u8; 32],
+    ) -> Result<(), SenderRecordError> {
         // First find the sender
         let sender_rec = self.records.get_mut(sender_id);
-        match sender_rec
-        {
+        match sender_rec {
             None => return Err(SenderRecordError("Sender not found".to_string())),
             Some(sender) => {
                 let _sender_lock = SpinlockGuard::new(sender.lock.clone());

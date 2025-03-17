@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
@@ -72,7 +75,7 @@ impl Distribution<f32> for Gaussian {
         if let Some(m) = self.max {
             max = m;
         }
-        
+
         let mut gaussian_sample = self.normal.sample(rng);
         while gaussian_sample > max {
             gaussian_sample = self.normal.sample(rng);

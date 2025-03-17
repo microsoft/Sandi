@@ -1,15 +1,18 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+use crate::epochs::{get_epoch, get_start_of_day};
 use crate::gaussian::{Gaussian, NoiseDistribution};
 use crate::nizqdleq;
-use crate::sender_records::{SenderRecord, SenderRecords, SenderId};
+use crate::sender_records::{SenderId, SenderRecord, SenderRecords};
 use crate::sender_tag::ReportTag;
 use crate::spin_lock::SpinlockGuard;
 use crate::tag::{EncSenderId, Tag, TagSignature};
 use crate::time_provider::{DefaultTimeProvider, TimeProvider};
 use crate::utils::{
-    basepoint_order, concat_id_and_scalars, decrypt, encrypt,
-    random_scalar, verify_signature, SignatureVerificationError, G,
+    basepoint_order, concat_id_and_scalars, decrypt, encrypt, random_scalar, verify_signature,
+    SignatureVerificationError, G,
 };
-use crate::epochs::{get_epoch, get_start_of_day};
 use chrono::Duration;
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use ed25519_dalek::{Signer, SigningKey};
@@ -102,8 +105,14 @@ impl AccountabilityServer {
 
         // If noise distribution is provided, verify it is maxed at -1.0
         if let Some(dist) = params.noise_distribution.as_ref() {
-            assert!(dist.max().is_some(), "Noise distribution must have a max value");
-            assert!(dist.max().unwrap() == -1.0, "Noise distribution must be maxed at -1.0");
+            assert!(
+                dist.max().is_some(),
+                "Noise distribution must have a max value"
+            );
+            assert!(
+                dist.max().unwrap() == -1.0,
+                "Noise distribution must be maxed at -1.0"
+            );
         }
 
         AccountabilityServer {
@@ -115,14 +124,25 @@ impl AccountabilityServer {
         }
     }
 
-    pub fn set_sender_epk(&mut self, epk: &RistrettoPoint, sender_handle: &str) -> Result<(), AccSvrError> {
+    pub fn set_sender_epk(
+        &mut self,
+        epk: &RistrettoPoint,
+        sender_handle: &str,
+    ) -> Result<(), AccSvrError> {
         // Get current epoch
-        let epoch = get_epoch(self.time_provider.get_current_time(), self.params.epoch_duration.try_into().unwrap(), self.params.epoch_start);
+        let epoch = get_epoch(
+            self.time_provider.get_current_time(),
+            self.params.epoch_duration.try_into().unwrap(),
+            self.params.epoch_start,
+        );
         let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
 
         match sender_opt {
             Some(sender) => {
-                match self.sender_records.set_sender_epk(&sender.id, epoch, epk.clone()) {
+                match self
+                    .sender_records
+                    .set_sender_epk(&sender.id, epoch, epk.clone())
+                {
                     Ok(_) => return Ok(()),
                     Err(e) => {
                         return Err(AccSvrError(e.0));
@@ -131,8 +151,12 @@ impl AccountabilityServer {
             }
             None => {
                 let mut rng = OsRng;
-                let mut sender =
-                    SenderRecord::new(sender_handle, self.params.tag_duration, self.params.maximum_score, &mut rng);
+                let mut sender = SenderRecord::new(
+                    sender_handle,
+                    self.params.tag_duration,
+                    self.params.maximum_score,
+                    &mut rng,
+                );
                 sender.epk_epoch = epoch;
                 sender.epk = Some(epk.clone());
                 self.sender_records.set_sender(sender);
@@ -143,14 +167,20 @@ impl AccountabilityServer {
 
     pub fn get_sender_epk(&self, sender_handle: &str) -> Result<RistrettoPoint, AccSvrError> {
         // Get current epoch
-        let epoch = get_epoch(self.time_provider.get_current_time(), self.params.epoch_duration.try_into().unwrap(), self.params.epoch_start);
+        let epoch = get_epoch(
+            self.time_provider.get_current_time(),
+            self.params.epoch_duration.try_into().unwrap(),
+            self.params.epoch_start,
+        );
         let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
         match sender_opt {
             Some(sender) => {
                 let epk_opt = self.sender_records.get_sender_epk(&sender.id, epoch);
                 match epk_opt {
                     Some(epk) => Ok(epk),
-                    None => Err(AccSvrError("Sender PK not found for current epoch".to_string())),
+                    None => Err(AccSvrError(
+                        "Sender PK not found for current epoch".to_string(),
+                    )),
                 }
             }
             None => Err(AccSvrError("Sender not found".to_string())),
@@ -183,7 +213,11 @@ impl AccountabilityServer {
         R: RngCore + CryptoRng,
     {
         // Current epoch
-        let epoch = get_epoch(self.time_provider.get_current_time(), self.params.epoch_duration.try_into().unwrap(), self.params.epoch_start);
+        let epoch = get_epoch(
+            self.time_provider.get_current_time(),
+            self.params.epoch_duration.try_into().unwrap(),
+            self.params.epoch_start,
+        );
 
         // First, we need to check if the sender_handle is valid
         let sender_opt = self.sender_records.get_sender_by_handle(sender_handle);
@@ -195,16 +229,20 @@ impl AccountabilityServer {
 
         // Check VKS limit
         if sender.get_vks_key_count(epoch) >= self.params.max_vks_per_epoch {
-            return Err(AccSvrError("Maximum number of VKS keys reached".to_string()));
+            return Err(AccSvrError(
+                "Maximum number of VKS keys reached".to_string(),
+            ));
         }
 
         // Add VKS key
         sender.add_vks_key(epoch, commitment_vks);
         self.sender_records.set_sender(sender.clone());
-        
+
         // PK for current epoch
         if epoch != sender.epk_epoch {
-            return Err(AccSvrError("Sender PK not found for current epoch".to_string()));
+            return Err(AccSvrError(
+                "Sender PK not found for current epoch".to_string(),
+            ));
         }
 
         let epk: RistrettoPoint;
@@ -263,8 +301,12 @@ impl AccountabilityServer {
 
         let signature = self.signing_key.sign(&data_to_sign);
 
-        let commitment_hr_array: [u8; 32] = commitment_hr.try_into().expect("commitment_hr is not 32 bytes long");
-        let commitment_vks_array: [u8; 32] = commitment_vks.try_into().expect("commitment_vks is not 32 bytes long");
+        let commitment_hr_array: [u8; 32] = commitment_hr
+            .try_into()
+            .expect("commitment_hr is not 32 bytes long");
+        let commitment_vks_array: [u8; 32] = commitment_vks
+            .try_into()
+            .expect("commitment_vks is not 32 bytes long");
 
         // Finally, we create the tag
         let tag = Tag {
@@ -287,10 +329,7 @@ impl AccountabilityServer {
         vk.to_bytes()
     }
 
-    pub fn report(
-        &mut self,
-        report_tag: &ReportTag
-    ) -> Result<(), AccSvrError> {
+    pub fn report(&mut self, report_tag: &ReportTag) -> Result<(), AccSvrError> {
         // Check if tag is expired
         let utc_now = self.time_provider.get_current_time();
         if report_tag.tag.exp_timestamp < utc_now {
@@ -346,7 +385,10 @@ impl AccountabilityServer {
         let sender_opt = self.sender_records.get_sender_by_id(&sender_id);
         match sender_opt {
             Some(mut sender) => {
-                if sender.reported_tags.contains_key(&report_tag.tag.signature.0) {
+                if sender
+                    .reported_tags
+                    .contains_key(&report_tag.tag.signature.0)
+                {
                     // Tag is already reported, no need to do anything
                     return Ok(());
                 }
@@ -371,7 +413,9 @@ impl AccountabilityServer {
                 }
 
                 // Tag is valid, so we add it to the unprocessed tags
-                sender.reported_tags.insert(report_tag.tag.signature.0.clone(), report_tag.tag.clone());
+                sender
+                    .reported_tags
+                    .insert(report_tag.tag.signature.0.clone(), report_tag.tag.clone());
                 sender.tokens.push((n, sigma));
                 sender.report_count[counter_idx] += 1;
 
@@ -398,17 +442,20 @@ impl AccountabilityServer {
             return (current_score + b).min(maximum_score);
         } else {
             assert!(reported_tag_count < report_threshold && current_score < 0.0);
-            return (current_score - (reported_tag_count as i32 - report_threshold as i32) as f64).min(0.0);
+            return (current_score - (reported_tag_count as i32 - report_threshold as i32) as f64)
+                .min(0.0);
         }
     }
 
     pub fn update_scores<R>(&mut self, rng: &mut R)
-    where R: RngCore + CryptoRng {
+    where
+        R: RngCore + CryptoRng,
+    {
         self.sender_records.for_each(|sender| {
             let _sender_lock = SpinlockGuard::new(sender.lock.clone());
-            
+
             let mut report_count = sender.report_count[0] as f64;
-        
+
             // Add noise if necessary
             if let Some(dist) = self.params.noise_distribution.as_ref() {
                 let noise = dist.sample(rng);
@@ -452,7 +499,7 @@ mod tests {
     use sha2::Sha256;
 
     use super::*;
-    use crate::{sender::Sender, sender_tag::SenderTag, utils};
+    use crate::{sender::Sender, sender_tag::SenderTag};
 
     static mut MOCK_TIME: i64 = 0;
 
@@ -505,11 +552,7 @@ mod tests {
                 channel = channels[0].clone();
             }
 
-            tags.push(
-                sender
-                    .get_tag(&channel, &mut server, &mut rng)
-                    .unwrap(),
-            );
+            tags.push(sender.get_tag(&channel, &mut server, &mut rng).unwrap());
         }
 
         // Before the report the count should be 0
@@ -651,7 +694,10 @@ mod tests {
         let commitment_hr = mac.finalize();
 
         let mut mac = Hmac::<Sha256>::new_from_slice(&[1u8; 32]).unwrap();
-        let vks = CompressedRistretto::from_slice(&[2u8; 32]).unwrap().decompress().unwrap();
+        let vks = CompressedRistretto::from_slice(&[2u8; 32])
+            .unwrap()
+            .decompress()
+            .unwrap();
         mac.update(vks.compress().as_bytes());
         let commitment_vks = mac.finalize();
 
@@ -659,7 +705,12 @@ mod tests {
         let set_pk_result = accsvr.set_sender_epk(&sender.epk, &sender.handle);
         assert!(set_pk_result.is_ok(), "{}", set_pk_result.unwrap_err().0);
 
-        let tag_res = accsvr.issue_tag(&commitment_hr.into_bytes().to_vec(), &commitment_vks.into_bytes().to_vec(), &sender.handle, &mut rng);
+        let tag_res = accsvr.issue_tag(
+            &commitment_hr.into_bytes().to_vec(),
+            &commitment_vks.into_bytes().to_vec(),
+            &sender.handle,
+            &mut rng,
+        );
         assert!(tag_res.is_ok());
 
         let _tag = tag_res.unwrap();
@@ -770,8 +821,7 @@ mod tests {
     }
 
     #[test]
-    fn compute_reputation_category_test()
-    {
+    fn compute_reputation_category_test() {
         let score = compute_reputation(0.0, 100.0);
         assert_eq!(score, 0);
 
@@ -865,10 +915,7 @@ mod tests {
 
         let mut rng = OsRng;
 
-        let _ = AccountabilityServer::new(
-            params,
-            &mut rng,
-        );
+        let _ = AccountabilityServer::new(params, &mut rng);
     }
 
     #[test]
@@ -887,10 +934,7 @@ mod tests {
 
         let mut rng = OsRng;
 
-        let _ = AccountabilityServer::new(
-            params,
-            &mut rng,
-        );
+        let _ = AccountabilityServer::new(params, &mut rng);
     }
 
     #[test]
@@ -908,10 +952,7 @@ mod tests {
 
         let mut rng = OsRng;
 
-        let _ = AccountabilityServer::new(
-            params,
-            &mut rng,
-        );
+        let _ = AccountabilityServer::new(params, &mut rng);
     }
 
     #[cfg(feature = "mem-tests")]
@@ -953,8 +994,16 @@ mod tests {
             let mem_stats = memory_stats().unwrap();
             let current_phys_mem = mem_stats.physical_mem;
             let current_virt_mem = mem_stats.virtual_mem;
-            println!("Memory usage (phys) adding 1M, iteration {}: {} MB", j, (current_phys_mem - previous_phys_mem) / 1024 / 1024);
-            println!("Memory usage (virt) adding 1M, iteration {}: {} MB", j, (current_virt_mem - previous_virt_mem) / 1024 / 1024);
+            println!(
+                "Memory usage (phys) adding 1M, iteration {}: {} MB",
+                j,
+                (current_phys_mem - previous_phys_mem) / 1024 / 1024
+            );
+            println!(
+                "Memory usage (virt) adding 1M, iteration {}: {} MB",
+                j,
+                (current_virt_mem - previous_virt_mem) / 1024 / 1024
+            );
 
             previous_phys_mem = current_phys_mem;
             previous_virt_mem = current_virt_mem;

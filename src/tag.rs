@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 use crate::serialization::{FixedBuffer32, FixedBuffer48, FixedBuffer64, TagArgs};
 use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use flatbuffers::FlatBufferBuilder;
@@ -105,7 +108,10 @@ impl<'de> Deserialize<'de> for EncSenderId {
     {
         let vec: Vec<u8> = Vec::deserialize(deserializer)?;
         if vec.len() != 48 {
-            return Err(serde::de::Error::invalid_length(vec.len(), &"expected 48 bytes"));
+            return Err(serde::de::Error::invalid_length(
+                vec.len(),
+                &"expected 48 bytes",
+            ));
         }
         let mut array = [0u8; 48];
         array.copy_from_slice(&vec);
@@ -131,7 +137,10 @@ impl<'de> Deserialize<'de> for TagSignature {
     {
         let vec: Vec<u8> = Vec::deserialize(deserializer)?;
         if vec.len() != 64 {
-            return Err(serde::de::Error::invalid_length(vec.len(), &"expected 64 bytes"));
+            return Err(serde::de::Error::invalid_length(
+                vec.len(),
+                &"expected 64 bytes",
+            ));
         }
         let mut array = [0u8; 64];
         array.copy_from_slice(&vec);

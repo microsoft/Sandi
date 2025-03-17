@@ -1,5 +1,5 @@
-// This is a modified version of the generated mod.rs
-// We use it because it fixes a lot of namespace issues with the generated code.
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
 
 // This will turn off warnings for the generated code, since we have little
 // control over it.

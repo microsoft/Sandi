@@ -1,12 +1,20 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+use sandi::sender_tag::SenderTag;
+use sandi::tag_verifier;
 use std::ffi::c_char;
-use acctblty::tag_verifier;
-use acctblty::sender_tag::SenderTag;
 
 use super::common::set_last_error;
 
-
 #[no_mangle]
-pub extern "C" fn verifier_verify_tag(receiver_addr: *const c_char, sender_tag: *const u8, sender_tag_len: u64, as_verif_key: *const u8, as_verif_key_len: u64) -> i32 {
+pub extern "C" fn verifier_verify_tag(
+    receiver_addr: *const c_char,
+    sender_tag: *const u8,
+    sender_tag_len: u64,
+    as_verif_key: *const u8,
+    as_verif_key_len: u64,
+) -> i32 {
     unsafe {
         if receiver_addr.is_null() {
             set_last_error("receiver_addr is null");
@@ -40,7 +48,7 @@ pub extern "C" fn verifier_verify_tag(receiver_addr: *const c_char, sender_tag: 
                         return -1;
                     }
                 }
-            },
+            }
             Err(err) => {
                 set_last_error(&err);
                 return -1;

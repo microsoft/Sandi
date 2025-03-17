@@ -1,38 +1,54 @@
-use std::{collections::HashMap, os::raw::c_char, os::raw::c_double, convert::TryInto};
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
 
+use std::{collections::HashMap, convert::TryInto, os::raw::c_char, os::raw::c_double};
+
+use super::common::set_last_error;
+use sandi::{
+    accountability_server::{AccServerParams, AccountabilityServer},
+    sender_tag::SenderTag,
+};
 use curve25519_dalek::ristretto::CompressedRistretto;
 use rand::{rngs::OsRng, RngCore};
-use acctblty::{accountability_server::{AccServerParams, AccountabilityServer}, sender_tag::SenderTag};
-use super::common::set_last_error;
 
 static mut ACC_SERVER_INSTANCES: Option<HashMap<u64, AccountabilityServer>> = None;
 
 struct AccServerInstError(pub String);
 
-fn get_acc_server_mut_ref(acc_server_id: u64) -> Result<&'static mut AccountabilityServer, AccServerInstError> {
+fn get_acc_server_mut_ref(
+    acc_server_id: u64,
+) -> Result<&'static mut AccountabilityServer, AccServerInstError> {
     unsafe {
         match ACC_SERVER_INSTANCES {
-            Some(ref mut instances) => {
-                match instances.get_mut(&acc_server_id) {
-                    Some(acc_server) => Ok(acc_server),
-                    None => Err(AccServerInstError(format!("Accountability server instance {} not found", acc_server_id)))
-                }
-            }
-            None => Err(AccServerInstError("Accountability server instances is not initialized".to_string()))
+            Some(ref mut instances) => match instances.get_mut(&acc_server_id) {
+                Some(acc_server) => Ok(acc_server),
+                None => Err(AccServerInstError(format!(
+                    "Accountability server instance {} not found",
+                    acc_server_id
+                ))),
+            },
+            None => Err(AccServerInstError(
+                "Accountability server instances is not initialized".to_string(),
+            )),
         }
     }
 }
 
-fn get_acc_server_ref(acc_server_id: u64) -> Result<&'static AccountabilityServer, AccServerInstError> {
+fn get_acc_server_ref(
+    acc_server_id: u64,
+) -> Result<&'static AccountabilityServer, AccServerInstError> {
     unsafe {
         match ACC_SERVER_INSTANCES {
-            Some(ref instances) => {
-                match instances.get(&acc_server_id) {
-                    Some(acc_server) => Ok(acc_server),
-                    None => Err(AccServerInstError(format!("Accountability server instance {} not found", acc_server_id)))
-                }
-            }
-            None => Err(AccServerInstError("Accountability server instances is not initialized".to_string()))
+            Some(ref instances) => match instances.get(&acc_server_id) {
+                Some(acc_server) => Ok(acc_server),
+                None => Err(AccServerInstError(format!(
+                    "Accountability server instance {} not found",
+                    acc_server_id
+                ))),
+            },
+            None => Err(AccServerInstError(
+                "Accountability server instances is not initialized".to_string(),
+            )),
         }
     }
 }
@@ -42,7 +58,7 @@ fn add_acc_server_instance(acc_server_id: u64, acc_server: AccountabilityServer)
         match ACC_SERVER_INSTANCES {
             Some(ref mut instances) => {
                 instances.insert(acc_server_id, acc_server);
-            },
+            }
             None => {
                 let mut instances = HashMap::new();
                 instances.insert(acc_server_id, acc_server);
@@ -53,7 +69,12 @@ fn add_acc_server_instance(acc_server_id: u64, acc_server: AccountabilityServer)
 }
 
 #[no_mangle]
-pub extern "C" fn as_init_acc_server(epoch_start: i64, epoch_duration: i64, tag_duration: i64, max_vks_per_epoch: i64) -> u64 {
+pub extern "C" fn as_init_acc_server(
+    epoch_start: i64,
+    epoch_duration: i64,
+    tag_duration: i64,
+    max_vks_per_epoch: i64,
+) -> u64 {
     let params = AccServerParams {
         maximum_score: 100.0,
         report_threshold: 10,
@@ -73,7 +94,11 @@ pub extern "C" fn as_init_acc_server(epoch_start: i64, epoch_duration: i64, tag_
 }
 
 #[no_mangle]
-pub extern "C" fn as_get_verifying_key(acc_server_id: u64, verif_key: *mut u8, verif_key_len: u64) -> i32 {
+pub extern "C" fn as_get_verifying_key(
+    acc_server_id: u64,
+    verif_key: *mut u8,
+    verif_key_len: u64,
+) -> i32 {
     if verif_key.is_null() {
         set_last_error("verif_key is null");
         return -1;
@@ -88,10 +113,12 @@ pub extern "C" fn as_get_verifying_key(acc_server_id: u64, verif_key: *mut u8, v
     match acc_server {
         Ok(acc_server) => {
             let verifying_key = acc_server.get_verifying_key();
-            let verif_key_slice = unsafe { std::slice::from_raw_parts_mut(verif_key, verif_key_len.try_into().unwrap()) };
+            let verif_key_slice = unsafe {
+                std::slice::from_raw_parts_mut(verif_key, verif_key_len.try_into().unwrap())
+            };
             verif_key_slice.copy_from_slice(&verifying_key);
             return 0;
-        },
+        }
         Err(err_msg) => {
             set_last_error(&err_msg.0);
             return -1;
@@ -100,7 +127,12 @@ pub extern "C" fn as_get_verifying_key(acc_server_id: u64, verif_key: *mut u8, v
 }
 
 #[no_mangle]
-pub extern "C" fn as_set_sender_epk(acc_server_id: u64, epk: *const u8, epk_len: u64, sender_handle: *const c_char) -> i32 {
+pub extern "C" fn as_set_sender_epk(
+    acc_server_id: u64,
+    epk: *const u8,
+    epk_len: u64,
+    sender_handle: *const c_char,
+) -> i32 {
     if epk.is_null() {
         set_last_error("epk is null");
         return -1;
@@ -117,12 +149,15 @@ pub extern "C" fn as_set_sender_epk(acc_server_id: u64, epk: *const u8, epk_len:
     let acc_server = get_acc_server_mut_ref(acc_server_id);
     match acc_server {
         Ok(acc_server) => {
-            let epk_res = CompressedRistretto::from_slice(epk).unwrap().decompress().ok_or("Failed to decompress epk");
+            let epk_res = CompressedRistretto::from_slice(epk)
+                .unwrap()
+                .decompress()
+                .ok_or("Failed to decompress epk");
             match epk_res {
                 Ok(epk) => match acc_server.set_sender_epk(&epk, sender_handle) {
                     Ok(_) => {
                         return 0;
-                    },
+                    }
                     Err(err_msg) => {
                         set_last_error(&err_msg.0);
                         return -1;
@@ -133,7 +168,7 @@ pub extern "C" fn as_set_sender_epk(acc_server_id: u64, epk: *const u8, epk_len:
                     return -1;
                 }
             }
-        },
+        }
         Err(err_msg) => {
             set_last_error(&err_msg.0);
             return -1;
@@ -142,7 +177,12 @@ pub extern "C" fn as_set_sender_epk(acc_server_id: u64, epk: *const u8, epk_len:
 }
 
 #[no_mangle]
-pub extern "C" fn as_get_sender_epk(acc_server_id: u64, sender_handle: *const c_char, epk: *mut u8, epk_len: u64) -> i32 {
+pub extern "C" fn as_get_sender_epk(
+    acc_server_id: u64,
+    sender_handle: *const c_char,
+    epk: *mut u8,
+    epk_len: u64,
+) -> i32 {
     if sender_handle.is_null() {
         set_last_error("sender_handle is null");
         return -1;
@@ -170,13 +210,13 @@ pub extern "C" fn as_get_sender_epk(acc_server_id: u64, sender_handle: *const c_
                     let epk_slice = epk.compress().to_bytes();
                     epk_result.copy_from_slice(&epk_slice);
                     return 0;
-                },
+                }
                 Err(err) => {
                     set_last_error(format!("Sender not found: {}", err.0).as_str());
                     return -1;
                 }
             }
-        },
+        }
         Err(err_msg) => {
             set_last_error(&err_msg.0);
             return -1;
@@ -185,7 +225,11 @@ pub extern "C" fn as_get_sender_epk(acc_server_id: u64, sender_handle: *const c_
 }
 
 #[no_mangle]
-pub extern "C" fn as_get_sender_score(acc_server_id: u64, sender_handle: *const c_char, sender_score: *mut c_double) -> i32 {
+pub extern "C" fn as_get_sender_score(
+    acc_server_id: u64,
+    sender_handle: *const c_char,
+    sender_score: *mut c_double,
+) -> i32 {
     if sender_handle.is_null() {
         set_last_error("sender_handle is null");
         return -1;
@@ -201,13 +245,13 @@ pub extern "C" fn as_get_sender_score(acc_server_id: u64, sender_handle: *const 
                 Ok(score) => {
                     unsafe { *sender_score = score };
                     return 0;
-                },
+                }
                 Err(err_msg) => {
                     set_last_error(&err_msg.0);
                     return -1;
                 }
             }
-        },
+        }
         Err(err_msg) => {
             set_last_error(&err_msg.0);
             return -1;
@@ -216,7 +260,16 @@ pub extern "C" fn as_get_sender_score(acc_server_id: u64, sender_handle: *const 
 }
 
 #[no_mangle]
-pub extern "C" fn as_issue_tag(acc_server_id: u64, sender_handle: *const c_char, commitment_hr: *const u8, commitment_hr_len: u64, commitment_vks: *const u8, commitment_vks_len: u64, tag: *mut u8, tag_len: u64) -> i32 {
+pub extern "C" fn as_issue_tag(
+    acc_server_id: u64,
+    sender_handle: *const c_char,
+    commitment_hr: *const u8,
+    commitment_hr_len: u64,
+    commitment_vks: *const u8,
+    commitment_vks_len: u64,
+    tag: *mut u8,
+    tag_len: u64,
+) -> i32 {
     if sender_handle.is_null() {
         set_last_error("sender_handle is null");
         return -1;
@@ -253,32 +306,40 @@ pub extern "C" fn as_issue_tag(acc_server_id: u64, sender_handle: *const c_char,
     }
 
     let sender_handle = unsafe { std::ffi::CStr::from_ptr(sender_handle).to_str().unwrap() };
-    let commitment_hr = unsafe { std::slice::from_raw_parts(commitment_hr, commitment_hr_len.try_into().unwrap()) };
-    let commitment_vks = unsafe { std::slice::from_raw_parts(commitment_vks, commitment_vks_len.try_into().unwrap()) };
+    let commitment_hr =
+        unsafe { std::slice::from_raw_parts(commitment_hr, commitment_hr_len.try_into().unwrap()) };
+    let commitment_vks = unsafe {
+        std::slice::from_raw_parts(commitment_vks, commitment_vks_len.try_into().unwrap())
+    };
     let tag_result = unsafe { std::slice::from_raw_parts_mut(tag, tag_len.try_into().unwrap()) };
 
     //let acc_server = unsafe { ACC_SERVER_INSTANCE.as_mut().unwrap() };
     let acc_server = get_acc_server_mut_ref(acc_server_id);
     match acc_server {
         Ok(acc_server) => {
-            let issue_result = acc_server.issue_tag(commitment_hr, commitment_vks, sender_handle, &mut OsRng);
+            let issue_result =
+                acc_server.issue_tag(commitment_hr, commitment_vks, sender_handle, &mut OsRng);
             match issue_result {
                 Ok(tag) => {
                     let tag_vec = tag.to_vec();
                     if (tag_vec.len() as u64) > tag_len {
-                        let msg = format!("tag_len is too small: {}, required: {}", tag_len, tag_vec.len());
+                        let msg = format!(
+                            "tag_len is too small: {}, required: {}",
+                            tag_len,
+                            tag_vec.len()
+                        );
                         set_last_error(&msg);
                         return -1;
                     }
                     tag_result.copy_from_slice(&tag_vec.as_slice());
                     return 0;
-                },
+                }
                 Err(err_msg) => {
                     set_last_error(&err_msg.0);
                     return -1;
                 }
             }
-        },
+        }
         Err(err_msg) => {
             set_last_error(&err_msg.0);
             return -1;
@@ -311,13 +372,13 @@ pub extern "C" fn as_report_tag(acc_server_id: u64, tag: *const u8, tag_len: u64
                                 return -1;
                             }
                         }
-                    },
+                    }
                     Err(err_msg) => {
                         set_last_error(&err_msg);
                         return -1;
                     }
                 }
-            },
+            }
             Err(err_msg) => {
                 set_last_error(&err_msg.0);
                 return -1;
@@ -334,7 +395,7 @@ pub extern "C" fn as_update_scores(acc_server_id: u64) -> i32 {
             let mut rng = OsRng;
             acc_server.update_scores(&mut rng);
             return 0;
-        },
+        }
         Err(err_msg) => {
             set_last_error(&err_msg.0);
             return -1;
@@ -348,7 +409,7 @@ pub extern "C" fn as_destroy_acc_server(acc_server_id: u64) {
         match ACC_SERVER_INSTANCES {
             Some(ref mut instances) => {
                 instances.remove(&acc_server_id);
-            },
+            }
             None => {}
         }
     }

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
 pub(crate) use curve25519_dalek::{RistrettoPoint, Scalar};
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};

@@ -1,4 +1,10 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 pub(crate) struct Spinlock {
     lock: AtomicBool,
@@ -13,14 +19,15 @@ impl Spinlock {
 
     fn lock(&self) {
         loop {
-            let result = self.lock.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed);
+            let result =
+                self.lock
+                    .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed);
             match result {
                 Ok(_previous) => {
                     // We were able to change the value
                     return;
                 }
-                Err(_current) => {
-                }
+                Err(_current) => {}
             }
         }
     }
@@ -37,9 +44,7 @@ pub(crate) struct SpinlockGuard {
 impl SpinlockGuard {
     pub(crate) fn new(lock: Arc<Spinlock>) -> Self {
         lock.lock();
-        SpinlockGuard {
-            lock,
-        }
+        SpinlockGuard { lock }
     }
 }
 

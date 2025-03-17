@@ -1,5 +1,13 @@
-use acctblty::{
-    accountability_server::{AccServerParams, AccountabilityServer}, sender::{Sender, SenderChannel}, sender_tag::{ReportTag, SenderTag}, tag::{EncSenderId, Tag, TagSignature}, tag_verifier, utils::{basepoint_order, random_point, random_scalar}
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license.
+
+use sandi::{
+    accountability_server::{AccServerParams, AccountabilityServer},
+    sender::{Sender, SenderChannel},
+    sender_tag::{ReportTag, SenderTag},
+    tag::{EncSenderId, Tag, TagSignature},
+    tag_verifier,
+    utils::{basepoint_order, random_point, random_scalar},
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use curve25519_dalek::Scalar;
@@ -61,7 +69,12 @@ fn issue_tag_bench(c: &mut Criterion) {
 
     c.bench_function("issue_tag", |b| {
         b.iter(|| {
-            let result = server.issue_tag(&commitment_hr.to_vec(), &commitment_vks.to_vec(), sender_handle, &mut rng);
+            let result = server.issue_tag(
+                &commitment_hr.to_vec(),
+                &commitment_vks.to_vec(),
+                sender_handle,
+                &mut rng,
+            );
             assert!(result.is_ok());
         })
     });
@@ -88,17 +101,11 @@ fn verify_tag_bench(c: &mut Criterion) {
     let receiver_addr = "receiver_addr";
     let channel = sender.add_channel(receiver_addr, &mut rng);
 
-    let tag = sender
-        .get_tag(&channel, &mut server, &mut rng)
-        .unwrap();
+    let tag = sender.get_tag(&channel, &mut server, &mut rng).unwrap();
 
     c.bench_function("verify_tag", |b| {
         b.iter(|| {
-            let _ = tag_verifier::verify(
-                receiver_addr,
-                &tag,
-                &server.get_verifying_key(),
-            );
+            let _ = tag_verifier::verify(receiver_addr, &tag, &server.get_verifying_key());
         })
     });
 }
@@ -131,7 +138,9 @@ fn report_tag_bench(c: &mut Criterion) {
     }
 
     let receiver_addr = "receiver_addr";
-    let channels: Vec<SenderChannel> = (0..NUM_SENDERS).map(|i| senders[i].add_channel(receiver_addr, &mut rng)).collect();
+    let channels: Vec<SenderChannel> = (0..NUM_SENDERS)
+        .map(|i| senders[i].add_channel(receiver_addr, &mut rng))
+        .collect();
 
     // Get NUM_SENDERS tags
     let mut tags: Vec<SenderTag> = Vec::new();
@@ -167,7 +176,7 @@ fn generate_nizqdleq_proof_bench(c: &mut Criterion) {
 
     c.bench_function("generate_nizqdleq_proof", |b| {
         b.iter(|| {
-            let proof = acctblty::nizqdleq::prove(
+            let proof = sandi::nizqdleq::prove(
                 &basepoint_order,
                 &x_big,
                 &y_big,
@@ -190,7 +199,7 @@ fn verify_nizqdleq_proof_bench(c: &mut Criterion) {
     let y_big = esk * x_big;
     let q_big = random_point(&mut rng);
     let r_big = esk * q_big;
-    let proof = acctblty::nizqdleq::prove(
+    let proof = sandi::nizqdleq::prove(
         &basepoint_order,
         &x_big,
         &y_big,
@@ -202,7 +211,7 @@ fn verify_nizqdleq_proof_bench(c: &mut Criterion) {
 
     c.bench_function("verify_nizqdleq_proof", |b| {
         b.iter(|| {
-            let result = acctblty::nizqdleq::verify(
+            let result = sandi::nizqdleq::verify(
                 &basepoint_order,
                 &x_big,
                 &y_big,
@@ -225,7 +234,6 @@ fn serialize_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut commitment_vks);
     let mut enc_sender_id = [0u8; 48];
     rng.fill_bytes(&mut enc_sender_id);
-
 
     let tag = Tag {
         commitment_hr: commitment_hr,
@@ -294,7 +302,7 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut randomness_hr);
     let mut randomness_vks = [0u8; 32];
     rng.fill_bytes(&mut randomness_vks);
-    let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
+    let proof = (random_scalar(&mut rng), random_scalar(&mut rng));
 
     let tag = Tag {
         commitment_hr: commitment_hr,
@@ -313,7 +321,7 @@ fn serialize_full_tag_bench(c: &mut Criterion) {
         proof: proof,
         r_big: random_point(&mut rng),
     };
-    
+
     let sender_tag = SenderTag {
         report_tag,
         randomness_hr: randomness_hr,
@@ -343,7 +351,7 @@ fn deserialize_full_tag_bench(c: &mut Criterion) {
     rng.fill_bytes(&mut randomness_hr);
     let mut randomness_vks = [0u8; 32];
     rng.fill_bytes(&mut randomness_vks);
-    let proof = (random_scalar(&mut rng), random_scalar(&mut rng));    
+    let proof = (random_scalar(&mut rng), random_scalar(&mut rng));
 
     let tag = Tag {
         commitment_hr: commitment_hr,
@@ -404,14 +412,8 @@ fn end_to_end_bench(c: &mut Criterion) {
 
     c.bench_function("end_to_end", |b| {
         b.iter(|| {
-            let tag = sender
-                .get_tag(&channel, &mut server, &mut rng)
-                .unwrap();
-            let _ = tag_verifier::verify(
-                receiver_addr,
-                &tag,
-                &verifying_key,
-            );
+            let tag = sender.get_tag(&channel, &mut server, &mut rng).unwrap();
+            let _ = tag_verifier::verify(receiver_addr, &tag, &verifying_key);
             let _ = server.report(&tag.report_tag);
             server.update_scores(&mut rng);
         })
