@@ -2,6 +2,16 @@
 name = "sandi_int"
 version = "0.1.0"
 edition = "2021"
+authors = [ "Radames Cruz Moreno <racruzmo@microsoft.com", "Kim Laine <kim.laine@microsoft.com>" ]
+readme = "README.md"
+license = "MIT"
+repository = "https://GitHub.com/Microsoft/Sandi"
+homepage = "https://GitHub.com/Microsoft/Sandi"
+description = "C bindings for the Sandi library."
+exclude = [
+    "**/.gitignore",
+    ".gitignore",
+]
 
 [lib]
 crate-type = ["cdylib"]
