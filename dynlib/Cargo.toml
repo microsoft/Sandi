@@ -20,5 +20,5 @@ crate-type = ["cdylib"]
 sandi = { path = ".." }
 sha2 = { version = "0.10" }
 hmac = "0.12"
-rand = { version = "0.8" }
+rand = { version = "0.9" }
 curve25519-dalek = { version = "4.1", features = [ "serde", "digest" ]}
