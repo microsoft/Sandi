@@ -1,6 +1,6 @@
 [package]
 name = "sandi_int"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = [ "Radames Cruz Moreno <racruzmo@microsoft.com", "Kim Laine <kim.laine@microsoft.com>" ]
 readme = "README.md"
