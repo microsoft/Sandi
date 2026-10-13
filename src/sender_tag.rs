@@ -121,8 +121,10 @@ impl SenderTag {
             .unwrap()
             .decompress()
             .ok_or("Failed to decompress vks")?;
-        let z_c = Scalar::from_canonical_bytes(full_tag.proof_c().0).unwrap();
-        let z_s = Scalar::from_canonical_bytes(full_tag.proof_s().0).unwrap();
+        let z_c = Option::<Scalar>::from(Scalar::from_canonical_bytes(full_tag.proof_c().0))
+            .ok_or("Failed to decode proof_c")?;
+        let z_s = Option::<Scalar>::from(Scalar::from_canonical_bytes(full_tag.proof_s().0))
+            .ok_or("Failed to decode proof_s")?;
         let r_big = CompressedRistretto::from_slice(&full_tag.r_big().0)
             .unwrap()
             .decompress()
@@ -162,8 +164,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn full_tag_serialization_test() {
+    fn random_sender_tag() -> SenderTag {
         let mut rng = OsRng;
         let tag = Tag {
             commitment_hr: [0; 32],
@@ -183,12 +184,36 @@ mod tests {
             r_big: random_point(&mut rng),
         };
 
-        let full_tag = SenderTag {
+        SenderTag {
             report_tag,
             randomness_hr: [0; 32],
             randomness_vks: [0; 32],
             vks: random_point(&mut rng),
-        };
+        }
+    }
+
+    #[test]
+    fn non_canonical_proof_scalar_test() {
+        let full_tag = random_sender_tag();
+        let serialized_tag = full_tag.to_vec();
+
+        // 0xFF..FF exceeds the group order, so it is not a canonical scalar encoding.
+        for scalar in [full_tag.report_tag.proof.0, full_tag.report_tag.proof.1] {
+            let scalar_bytes = scalar.to_bytes();
+            let pos = serialized_tag
+                .windows(32)
+                .position(|w| w == scalar_bytes)
+                .unwrap();
+
+            let mut tampered_tag = serialized_tag.clone();
+            tampered_tag[pos..pos + 32].copy_from_slice(&[0xFF; 32]);
+            assert!(SenderTag::from_slice(&tampered_tag).is_err());
+        }
+    }
+
+    #[test]
+    fn full_tag_serialization_test() {
+        let full_tag = random_sender_tag();
 
         let serialized_tag = full_tag.to_vec();
         assert_eq!(serialized_tag.len(), 508);
